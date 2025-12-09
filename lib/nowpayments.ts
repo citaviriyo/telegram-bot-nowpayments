@@ -208,7 +208,9 @@ export class NOWPaymentsAPI {
       pay_currency: 'BTC', // Default ke Bitcoin, bisa diubah
       order_id: `${packageType}_${chatId}_${Date.now()}`,
       order_description: packageDetails.description,
-      ipn_callback_url: ipnCallbackUrl
+      ipn_callback_url: ipnCallbackUrl,
+      success_url: "https://koinity.online/success.html",
+  cancel_url: "https://koinity.online/cancel.html"
     };
   }
 

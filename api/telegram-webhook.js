@@ -8,8 +8,8 @@ async function createInvoice(amountUsd, description) {
       price_currency: "usd",
       pay_currency: "usdtbsc",
       order_description: description,
-      success_url: "https://www.koinity.online/success",
-      cancel_url: "https://www.koinity.online/cancel",
+      success_url: "https://koinity.online/success.html",
+      cancel_url: "https://koinity.online/cancel.html",
       ipn_callback_url: process.env.NOWPAYMENTS_IPN_URL
     },
     {

@@ -22,22 +22,29 @@ module.exports = async (req, res) => {
       const chatId = update.message.chat.id;
       const text = update.message.text.trim();
 
-      if (text === "/start") {
-        await axios.post(`${TELEGRAM_API}/sendMessage`, {
-          chat_id: chatId,
-          text:
-            "Halo 👋\n\n" +
-            "Bot Koinity sudah AKTIF.\n" +
-            "Silakan pilih menu di bawah ini untuk mulai.",
-          reply_markup: {
-            inline_keyboard: [
-              [
-                { text: "📋 Lihat Paket", callback_data: "menu_paket" },
-                { text: "💬 Hubungi Admin", callback_data: "menu_admin" }
-              ]
-            ]
-          }
-        });
+     if (text === "/start") {
+  await axios.post(`${TELEGRAM_API}/sendMessage`, {
+    chat_id: chatId,
+    text:
+      "✨ *Selamat datang di KOINITY BOT* ✨\n\n" +
+      "Di sini kamu bisa:\n" +
+      "• Lihat daftar paket membership 💳\n" +
+      "• Bayar pakai kripto via NOWPayments 💰\n" +
+      "• Dapat akses ke grup & konten premium 🔒\n\n" +
+      "Silakan pilih menu di bawah ini untuk mulai 👇",
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "📋 Lihat Paket", callback_data: "menu_paket" },
+          { text: "💳 Cara Berlangganan", callback_data: "menu_cara" }
+        ],
+        [
+          { text: "💬 Chat Admin", callback_data: "menu_admin" }
+        ]
+      ]
+    }
+  });
       } else {
         // Balasan default kalau user kirim teks lain
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
@@ -48,37 +55,51 @@ module.exports = async (req, res) => {
     }
 
     // 2) Handle klik tombol (callback_query)
-    if (update.callback_query) {
-      const cq = update.callback_query;
-      const data = cq.data;
-      const chatId = cq.message.chat.id;
+   if (update.callback_query) {
+  const cq = update.callback_query;
+  const data = cq.data;
+  const chatId = cq.message.chat.id;
 
-      // Wajib jawab callback supaya tidak muter loading di Telegram
-      await axios.post(`${TELEGRAM_API}/answerCallbackQuery`, {
-        callback_query_id: cq.id
-      });
+  // Wajib jawab callback supaya tombol nggak loading terus
+  await axios.post(`${TELEGRAM_API}/answerCallbackQuery`, {
+    callback_query_id: cq.id
+  });
 
-      if (data === "menu_paket") {
-        await axios.post(`${TELEGRAM_API}/sendMessage`, {
-          chat_id: chatId,
-          text:
-            "📋 *Daftar Paket Premium*\n\n" +
-            "1️⃣ Paket Bulanan\n" +
-            "2️⃣ Paket 3 Bulan\n" +
-            "3️⃣ Paket Tahunan\n\n" +
-            "Untuk sementara ini contoh dulu bro, nanti kita sambung ke NOWPayments.",
-          parse_mode: "Markdown"
-        });
-      } else if (data === "menu_admin") {
-        await axios.post(`${TELEGRAM_API}/sendMessage`, {
-          chat_id: chatId,
-          text: "Silakan chat admin di @username_admin (contoh, nanti bisa diganti)."
-        });
-      } else {
-        await axios.post(`${TELEGRAM_API}/sendMessage`, {
-          chat_id: chatId,
-          text: `Kamu pilih: ${data}`
-        });
+  if (data === "menu_paket") {
+    await axios.post(`${TELEGRAM_API}/sendMessage`, {
+      chat_id: chatId,
+      text:
+        "📋 *Daftar Paket Membership KOINITY*\n\n" +
+        "1️⃣ *Paket Bulanan* – cocok buat coba dulu\n" +
+        "2️⃣ *Paket 3 Bulan* – lebih hemat dari bulanan\n" +
+        "3️⃣ *Paket Tahunan* – paling murah per bulan 🔥\n\n" +
+        "Semua pembayaran diproses otomatis via *NOWPayments (kripto).*",
+      parse_mode: "Markdown"
+    });
+  } else if (data === "menu_cara") {
+    await axios.post(`${TELEGRAM_API}/sendMessage`, {
+      chat_id: chatId,
+      text:
+        "💳 *Cara Berlangganan KOINITY*\n\n" +
+        "1. Pilih paket membership yang kamu mau\n" +
+        "2. Bot akan kirim link pembayaran kripto (NOWPayments)\n" +
+        "3. Lakukan pembayaran sebelum waktu habis\n" +
+        "4. Setelah terkonfirmasi, kamu akan dapat akses ke grup premium 🚀",
+      parse_mode: "Markdown"
+    });
+  } else if (data === "menu_admin") {
+    await axios.post(`${TELEGRAM_API}/sendMessage`, {
+      chat_id: chatId,
+      text:
+        "Kalau ada pertanyaan atau kendala, silakan chat admin di:\n" +
+        "@koinity_admin\n\n" +
+        "(Ganti dulu username ini di kode sesuai akun admin asli ya bro 😁)"
+    });
+  } else {
+    await axios.post(`${TELEGRAM_API}/sendMessage`, {
+      chat_id: chatId,
+      text: `Kamu pilih: ${data}`
+    });
       }
     }
 

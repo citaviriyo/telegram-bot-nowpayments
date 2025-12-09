@@ -151,13 +151,16 @@ Silakan pilih menu di bawah untuk mulai ⬇️`,
 
     // === BAYAR 1 BULAN ===
    } else if (data === "pay_1bulan") {
-  const invoiceUrl = await createInvoice(12, "KOINTY Membership 1 Bulan");
-
+ const description = `KOINITY|${chatId}|1bulan`;
+  const invoiceUrl = await createInvoice(12, description);
   await axios.post(`${TELEGRAM_API}/sendMessage`, {
     chat_id: chatId,
     text:
       "✅ *Paket 1 Bulan Dipilih*\n\n" +
       "💰 Harga: *$12*\n\n" +
+      "💱 Metode bayar: *USDT jaringan BSC (BEP-20)*\n" +
+      "⚠️ Kirim sesuai jumlah yang tertera di halaman pembayaran (termasuk angka di belakang koma).\n" +
+      "⚠️ Biaya network dari exchange ditanggung pengirim.\n\n" +
       "Klik tombol di bawah ini untuk melakukan pembayaran 👇",
     parse_mode: "Markdown",
     reply_markup: {
@@ -171,13 +174,16 @@ Silakan pilih menu di bawah untuk mulai ⬇️`,
 
     // === BAYAR 3 BULAN ===
    } else if (data === "pay_3bulan") {
-  const invoiceUrl = await createInvoice(30, "KOINTY Membership 3 Bulan");
-
+  const description = `KOINITY|${chatId}|3bulan`;
+const invoiceUrl = await createInvoice(30, description);
   await axios.post(`${TELEGRAM_API}/sendMessage`, {
     chat_id: chatId,
     text:
       "✅ *Paket 3 Bulan Dipilih*\n\n" +
       "💰 Harga: *$30* (Lebih Hemat ✅)\n\n" +
+      "💱 Metode bayar: *USDT jaringan BSC (BEP-20)*\n" +
+      "⚠️ Kirim sesuai jumlah yang tertera di halaman pembayaran (termasuk angka di belakang koma).\n" +
+      "⚠️ Biaya network dari exchange ditanggung pengirim.\n\n" +
       "Klik tombol di bawah ini untuk melakukan pembayaran 👇",
     parse_mode: "Markdown",
     reply_markup: {
@@ -191,13 +197,16 @@ Silakan pilih menu di bawah untuk mulai ⬇️`,
 
     // === BAYAR 1 TAHUN ===
    } else if (data === "pay_1tahun") {
-  const invoiceUrl = await createInvoice(50, "KOINTY Membership 1 Tahun");
-
+  const description = `KOINITY|${chatId}|1tahun`;
+const invoiceUrl = await createInvoice(50, description);
   await axios.post(`${TELEGRAM_API}/sendMessage`, {
     chat_id: chatId,
     text:
-      "✅ *Paket 1 Tahun Dipilih*\n\n" +
-      "💰 Harga: *$50* (Paling Murah per Bulan 🔥)\n\n" +
+     "✅ *Paket 1 Tahun Dipilih*\n\n" +
+      "💰 Harga: *$50* (Paling Murah per bulan 🔥)\n\n" +
+      "💱 Metode bayar: *USDT jaringan BSC (BEP-20)*\n" +
+      "⚠️ Kirim sesuai jumlah yang tertera di halaman pembayaran (termasuk angka di belakang koma).\n" +
+      "⚠️ Biaya network dari exchange ditanggung pengirim.\n\n" +
       "Klik tombol di bawah ini untuk melakukan pembayaran 👇",
     parse_mode: "Markdown",
     reply_markup: {

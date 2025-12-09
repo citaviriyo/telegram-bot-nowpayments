@@ -6,7 +6,7 @@ async function createInvoice(amountUsd, description) {
     {
       price_amount: amountUsd,
       price_currency: "usd",
-      pay_currency: "usdttrc20",
+      pay_currency: "usdtbsc",
       order_description: description,
       success_url: "https://www.koinity.online/success",
       cancel_url: "https://www.koinity.online/cancel",

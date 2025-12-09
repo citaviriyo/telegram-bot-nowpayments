@@ -22,22 +22,23 @@ module.exports = async (req, res) => {
       const chatId = update.message.chat.id;
       const text = update.message.text.trim();
 
-     if (text === "/start") {
+    if (text === "/start") {
   await axios.post(`${TELEGRAM_API}/sendMessage`, {
     chat_id: chatId,
     text:
-      "✨ *Selamat datang di KOINITY BOT* ✨\n\n" +
-      "Di sini kamu bisa:\n" +
-      "• Lihat daftar paket membership 💳\n" +
-      "• Bayar pakai kripto via NOWPayments 💰\n" +
-      "• Dapat akses ke grup & konten premium 🔒\n\n" +
-      "Silakan pilih menu di bawah ini untuk mulai 👇",
-    parse_mode: "Markdown",
+`✨ Selamat Datang di KOINITY BOT ✨
+
+Di sini kamu bisa:
+✅ Lihat paket membership
+✅ Bayar pakai kripto via NOWPayments
+✅ Dapat akses grup & konten premium
+
+Silakan pilih menu di bawah untuk mulai ⬇️`,
     reply_markup: {
       inline_keyboard: [
         [
-          { text: "📋 Lihat Paket", callback_data: "menu_paket" },
-          { text: "💳 Cara Berlangganan", callback_data: "menu_cara" }
+          { text: "📦 Lihat Paket", callback_data: "menu_paket" },
+          { text: "📖 Cara Berlangganan", callback_data: "menu_cara" }
         ],
         [
           { text: "💬 Chat Admin", callback_data: "menu_admin" }
@@ -65,36 +66,103 @@ module.exports = async (req, res) => {
     callback_query_id: cq.id
   });
 
-  if (data === "menu_paket") {
-    await axios.post(`${TELEGRAM_API}/sendMessage`, {
-      chat_id: chatId,
-      text:
-        "📋 *Daftar Paket Membership KOINITY*\n\n" +
-        "1️⃣ *Paket Bulanan* – cocok buat coba dulu\n" +
-        "2️⃣ *Paket 3 Bulan* – lebih hemat dari bulanan\n" +
-        "3️⃣ *Paket Tahunan* – paling murah per bulan 🔥\n\n" +
-        "Semua pembayaran diproses otomatis via *NOWPayments (kripto).*",
-      parse_mode: "Markdown"
-    });
+ if (data === "menu_paket") {
+  await axios.post(`${TELEGRAM_API}/sendMessage`, {
+    chat_id: chatId,
+    text:
+`📦 *Daftar Paket Membership KOINITY*
+
+1️⃣ *Paket 1 Bulan*  
+💵 Harga: *$12*
+
+2️⃣ *Paket 3 Bulan*  
+💵 Harga: *$30* (Lebih Hemat ✅)
+
+3️⃣ *Paket 1 Tahun*  
+💵 Harga: *$50* (Paling Murah 🔥)
+
+Semua pembayaran diproses otomatis via *NOWPayments (Kripto)*`,
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "✅ Pilih 1 Bulan ($12)", callback_data: "pay_1bulan" }
+        ],
+        [
+          { text: "✅ Pilih 3 Bulan ($30)", callback_data: "pay_3bulan" }
+        ],
+        [
+          { text: "✅ Pilih 1 Tahun ($50)", callback_data: "pay_1tahun" }
+        ],
+        [
+          { text: "⬅️ Kembali", callback_data: "back_home" }
+        ]
+      ]
+    }
+  });
   } else if (data === "menu_cara") {
-    await axios.post(`${TELEGRAM_API}/sendMessage`, {
-      chat_id: chatId,
-      text:
-        "💳 *Cara Berlangganan KOINITY*\n\n" +
-        "1. Pilih paket membership yang kamu mau\n" +
-        "2. Bot akan kirim link pembayaran kripto (NOWPayments)\n" +
-        "3. Lakukan pembayaran sebelum waktu habis\n" +
-        "4. Setelah terkonfirmasi, kamu akan dapat akses ke grup premium 🚀",
-      parse_mode: "Markdown"
-    });
+  await axios.post(`${TELEGRAM_API}/sendMessage`, {
+    chat_id: chatId,
+    text:
+`📖 *Cara Berlangganan KOINITY*
+
+1️⃣ Pilih paket membership  
+2️⃣ Bot akan kirim link pembayaran kripto  
+3️⃣ Lakukan pembayaran sebelum waktu habis  
+4️⃣ Setelah terkonfirmasi, akses premium langsung aktif 🚀
+
+Mudah, cepat, dan otomatis ✅`,
+    parse_mode: "Markdown"
+  });
   } else if (data === "menu_admin") {
-    await axios.post(`${TELEGRAM_API}/sendMessage`, {
-      chat_id: chatId,
-      text:
-        "Kalau ada pertanyaan atau kendala, silakan chat admin di:\n" +
-        "@koinity_admin\n\n" +
-        "(Ganti dulu username ini di kode sesuai akun admin asli ya bro 😁)"
+  await axios.post(`${TELEGRAM_API}/sendMessage`, {
+    chat_id: chatId,
+    text:
+`💬 Untuk bantuan langsung, silakan hubungi admin:
+
+👉 @koinity_admin  
     });
+    } else if (data === "pay_1bulan") {
+  await axios.post(`${TELEGRAM_API}/sendMessage`, {
+    chat_id: chatId,
+    text:
+`✅ Kamu memilih *Paket 1 Bulan*
+
+💵 Harga: *$12*
+
+Silakan lanjutkan pembayaran via kripto dengan menekan link di bawah 👇
+(Link pembayaran akan muncul otomatis dari NOWPayments)`,
+    parse_mode: "Markdown"
+  });
+
+} else if (data === "pay_3bulan") {
+  await axios.post(`${TELEGRAM_API}/sendMessage`, {
+    chat_id: chatId,
+    text:
+`✅ Kamu memilih *Paket 3 Bulan*
+
+💵 Harga: *$30*
+
+Silakan lanjutkan pembayaran via kripto dengan menekan link di bawah 👇`,
+    parse_mode: "Markdown"
+  });
+
+} else if (data === "pay_1tahun") {
+  await axios.post(`${TELEGRAM_API}/sendMessage`, {
+    chat_id: chatId,
+    text:
+`✅ Kamu memilih *Paket 1 Tahun*
+
+💵 Harga: *$50*
+
+Silakan lanjutkan pembayaran via kripto dengan menekan link di bawah 👇`,
+    parse_mode: "Markdown"
+  });
+} else if (data === "back_home") {   
+  await axios.post(`${TELEGRAM_API}/sendMessage`, {
+    chat_id: chatId,
+    text: "🔙 Kembali ke menu utama. Ketik /start"
+  });
   } else {
     await axios.post(`${TELEGRAM_API}/sendMessage`, {
       chat_id: chatId,

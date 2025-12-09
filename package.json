@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "vercel dev",
-    "build": "tsc",
+    "build": "echo \"skip build, handled by Vercel\"",
     "start": "vercel start",
     "lint": "echo 'No ESLint configured - skipping lint check'"
   },

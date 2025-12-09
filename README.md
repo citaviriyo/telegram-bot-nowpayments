@@ -6,7 +6,7 @@ Proyek Telegram bot yang menggunakan webhook untuk berlangganan grup dengan pemb
 
 - **Webhook-based**: Tidak perlu VPS, berjalan di serverless Vercel
 - **Pembayaran Crypto**: Integrasi dengan NOWPayments untuk berbagai cryptocurrency
-- **Multi-paket**: Paket bulanan ($12) dan tahunan ($120)
+- **Multi-paket**: Paket bulanan ($12), Paket 3 bulan ($30) dan tahunan ($50)
 - **Otomatis**: Undang user ke grup setelah pembayaran berhasil
 - **Storage Abstraction**: Mudah migrasi dari in-memory ke database
 - **TypeScript**: Full TypeScript untuk type safety

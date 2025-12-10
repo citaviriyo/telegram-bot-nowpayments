@@ -4,7 +4,7 @@ const axios = require("axios");
 
 const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
 const VIP_GROUP_ID = -1002592772128; // KOINITY VIP
-
+const CHANNEL_ID = -1002781803104;      // KOINITY Channel (broadcast/signal)
 module.exports = async (req, res) => {
   try {
     const data = req.body;
@@ -40,25 +40,44 @@ module.exports = async (req, res) => {
 
     console.log("✅ CHAT ID TERBACA:", chatId);
 
-    // ✅ BUAT INVITE LINK 1x PAKAI
-    const invite = await axios.post(`${TELEGRAM_API}/createChatInviteLink`, {
-      chat_id: VIP_GROUP_ID,
-      member_limit: 1
-    });
+     // ✅ BUAT INVITE LINK 1x PAKAI UNTUK GRUP VIP
+    const vipInvite = await axios.post(
+      `${TELEGRAM_API}/createChatInviteLink`,
+      {
+        chat_id: VIP_GROUP_ID,
+        member_limit: 1,
+      }
+    );
 
-    console.log("✅ INVITE LINK BERHASIL DIBUAT:", invite.data);
+    console.log("✅ INVITE LINK GRUP VIP:", vipInvite.data);
 
-    const inviteLink = invite.data.result.invite_link;
+    const vipInviteLink = vipInvite.data.result.invite_link;
 
-    // ✅ KIRIM LINK KE USER
+    // ✅ BUAT INVITE LINK 1x PAKAI UNTUK CHANNEL
+    const channelInvite = await axios.post(
+      `${TELEGRAM_API}/createChatInviteLink`,
+      {
+        chat_id: CHANNEL_ID,
+        member_limit: 1,
+      }
+    );
+
+    console.log("✅ INVITE LINK CHANNEL:", channelInvite.data);
+
+    const channelInviteLink = channelInvite.data.result.invite_link;
+
+    // ✅ KIRIM PESAN KE USER (2 LINK SEKALIGUS)
     await axios.post(`${TELEGRAM_API}/sendMessage`, {
       chat_id: chatId,
       text:
         `✅ *Pembayaran Berhasil!*\n\n` +
-        `🎉 Selamat, kamu resmi menjadi member *KOINITY VIP*\n\n` +
-        `🔗 Silakan masuk lewat link di bawah ini (hanya bisa dipakai 1x):\n` +
-        `${inviteLink}`,
-      parse_mode: "Markdown"
+        `🎉 Selamat, kamu resmi menjadi member *KOINITY VIP*.\n\n` +
+        `👥 *Grup Diskusi VIP* (chat & tanya jawab):\n` +
+        `${vipInviteLink}\n\n` +
+        `📢 *Channel KOINITY* (info & update penting):\n` +
+        `${channelInviteLink}\n\n` +
+        `_Catatan: Setiap link hanya bisa dipakai 1x per orang. Jangan dibagikan ke orang lain._`,
+      parse_mode: "Markdown",
     });
 
     console.log("✅ PESAN TERKIRIM KE USER:", chatId);

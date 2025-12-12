@@ -38,7 +38,19 @@ module.exports = async (req, res) => {
 
   try {
     const update = req.body || {};
+// === ANTI NYAMBER GROUP (WAJIB DI SINI) ===
+const msg = update.message || update.edited_message;
 
+if (msg) {
+  const chatType = msg.chat?.type; // private | group | supergroup | channel
+  const text = msg.text || "";
+
+  // Jangan respon chat biasa di group / channel
+  if (chatType !== "private" && !text.startsWith("/")) {
+    return res.status(200).json({ ok: true, ignored: "group non-command" });
+  }
+}
+// === END ANTI NYAMBER ===
     // 1) Handle /start dari user
     if (update.message && update.message.text) {
       const chatId = update.message.chat.id;

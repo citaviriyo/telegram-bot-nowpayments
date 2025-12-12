@@ -42,13 +42,13 @@ module.exports = async (req, res) => {
 const msg = update.message || update.edited_message;
 
 if (msg) {
-  const chatType = msg.chat?.type; // private | group | supergroup | channel
-  const text = msg.text || "";
+    const chatType = msg.chat?.type; // private | group | supergroup | channel
 
-  // Jangan respon chat biasa di group / channel
-  if (chatType !== "private" && !text.startsWith("/")) {
-    return res.status(200).json({ ok: true, ignored: "group non-command" });
+  // DIAM TOTAL di group/channel (termasuk command /start /rules dll)
+  if (chatType !== "private") {
+    return res.status(200).json({ ok: true, ignored: "all group/channel" });
   }
+
 }
 // === END ANTI NYAMBER ===
     // 1) Handle /start dari user

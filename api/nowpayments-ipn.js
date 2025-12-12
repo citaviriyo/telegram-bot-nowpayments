@@ -70,14 +70,14 @@ module.exports = async (req, res) => {
     await axios.post(`${TELEGRAM_API}/sendMessage`, {
       chat_id: chatId,
       text:
-        `✅ *Pembayaran Berhasil!*\n\n` +
-        `🎉 Selamat, kamu resmi menjadi member *KOINITY VIP*.\n\n` +
-        `👥 *Grup Diskusi VIP* (chat & tanya jawab):\n` +
+        `✅ Pembayaran Berhasil!\n\n` +
+        `🎉 Selamat, kamu resmi menjadi member KOINITY VIP.\n\n` +
+        `👥 Grup Diskusi VIP (chat & tanya jawab):\n` +
         `${vipInviteLink}\n\n` +
-        `📢 *Channel KOINITY* (info & update penting):\n` +
+        `📢 Channel KOINITY (info & update penting):\n` +
         `${channelInviteLink}\n\n` +
-        `_Catatan: Setiap link hanya bisa dipakai 1x per orang. Jangan dibagikan ke orang lain._`,
-      parse_mode: "Markdown",
+        `Catatan: Setiap link hanya bisa dipakai 1x per orang. Jangan dibagikan ke orang lain.`,
+      
     });
 
     console.log("✅ PESAN TERKIRIM KE USER:", chatId);

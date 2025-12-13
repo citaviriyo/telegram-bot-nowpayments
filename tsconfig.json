@@ -16,12 +16,28 @@
     "rootDir": "./",
     "baseUrl": "./",
     "paths": {
-      "@/*": ["./*"]
-    }
+      "@/*": [
+        "./*"
+      ]
+    },
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "noEmit": true,
+    "incremental": true,
+    "jsx": "preserve",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
   "include": [
     "**/*.ts",
-    "**/*.js"
+    "**/*.js",
+    ".next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

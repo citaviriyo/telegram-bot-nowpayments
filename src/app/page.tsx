@@ -1,13 +1,16 @@
 export default function Home() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen gap-8 p-4">
-      <div className="relative w-24 h-24 md:w-32 md:h-32">
+    <main className="min-h-screen flex items-center justify-center p-6">
+      <div className="text-center space-y-3">
+        {/* LOGO */}
         <img
-          src="/logo.svg"
-          alt="Z.ai Logo"
-          className="w-full h-full object-contain"
+          src="/koinity.jpg"
+          alt="Koinity Logo"
+          className="mx-auto w-32 h-32 object-contain"
         />
+        <h1 className="text-3xl font-bold">Koinity</h1>
+        <p className="text-muted-foreground">Local dev OK ✅</p>
       </div>
-    </div>
-  )
+    </main>
+  );
 }

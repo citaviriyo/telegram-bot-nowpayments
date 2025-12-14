@@ -5,11 +5,12 @@
   "main": "index.js",
   "scripts": {
   "dev": "next dev",
-  "build": "echo \"skip build, handled by Vercel\"",
-  "postinstall": "npx prisma generate",
+  "build": "prisma generate",
   "start": "vercel start",
+  "postinstall": "prisma generate",
   "lint": "echo \"No ESLint configured - skipping lint check\""
 },
+
 
   "dependencies": {
     "@radix-ui/react-navigation-menu": "^1.2.14",

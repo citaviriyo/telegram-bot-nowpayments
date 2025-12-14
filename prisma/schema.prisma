@@ -24,6 +24,8 @@ model Subscription {
   startsAt  DateTime @default(now())
   endsAt    DateTime
   status    String   @default("active") // active | expired | canceled
+  warn3SentAt DateTime?
+  warn1SentAt DateTime?
 
   member    Member   @relation(fields: [memberId], references: [id])
 

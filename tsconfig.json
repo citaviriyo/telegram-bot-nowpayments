@@ -16,9 +16,9 @@
     "rootDir": "./",
     "baseUrl": "./",
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./src/*"]
+        
+      
     },
     "lib": [
       "dom",
@@ -35,10 +35,11 @@
     ]
   },
   "include": [
-    "**/*.ts",
-    "**/*.js",
-    ".next/types/**/*.ts"
-  ],
+  "next-env.d.ts",
+  "src/**/*.ts",
+  "src/**/*.tsx",
+  ".next/types/**/*.ts"
+],
   "exclude": [
     "node_modules",
     "dist"

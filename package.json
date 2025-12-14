@@ -4,11 +4,13 @@
   "description": "Telegram bot with NOWPayments integration for Vercel deployment",
   "main": "index.js",
   "scripts": {
-    "dev": "next dev",
-    "build": "echo \"skip build, handled by Vercel\"",
-    "start": "vercel start",
-    "lint": "echo 'No ESLint configured - skipping lint check'"
-  },
+  "dev": "next dev",
+  "build": "echo \"skip build, handled by Vercel\"",
+  "postinstall": "npx prisma generate",
+  "start": "vercel start",
+  "lint": "echo \"No ESLint configured - skipping lint check\""
+},
+
   "dependencies": {
     "@radix-ui/react-navigation-menu": "^1.2.14",
     "axios": "^1.6.0",

@@ -4,7 +4,7 @@ const axios = require("axios");
 
 const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
 const VIP_GROUP_ID = -1002592772128; // KOINITY VIP
-const CHANNEL_ID = -1002781803104;      // KOINITY Channel (broadcast/signal)
+
 module.exports = async (req, res) => {
   try {
     const data = req.body;

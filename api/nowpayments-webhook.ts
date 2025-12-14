@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTelegramBot } from '@/lib/telegram';
-import { getStorage } from '@/lib/storage';
-import { NOWPaymentsIPN } from '@/lib/nowpayments';
+import { getTelegramBot } from '../lib/telegram';
+import { getStorage } from '../lib/storage';
+import { NOWPaymentsIPN } from '../lib/nowpayments';
 
 /**
  * API Endpoint untuk NOWPayments IPN (Instant Payment Notification)

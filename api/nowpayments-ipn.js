@@ -53,32 +53,19 @@ module.exports = async (req, res) => {
 
     const vipInviteLink = vipInvite.data.result.invite_link;
 
-    // ✅ BUAT INVITE LINK 1x PAKAI UNTUK CHANNEL
-    const channelInvite = await axios.post(
-      `${TELEGRAM_API}/createChatInviteLink`,
-      {
-        chat_id: CHANNEL_ID,
-        member_limit: 1,
-      }
-    );
+   
 
-    console.log("✅ INVITE LINK CHANNEL:", channelInvite.data);
+    // ✅ KIRIM PESAN KE USER (1 LINK )
+   await axios.post(`${TELEGRAM_API}/sendMessage`, {
+  chat_id: chatId,
+  text:
+    `🎉 Pembayaran Berhasil!\n\n` +
+    `✨ Selamat, kamu resmi menjadi member KOINITY VIP.\n\n` +
+    `💬 Akses KOINITY VIP (semua forum & broadcast):\n` +
+    `${vipInviteLink}\n\n` +
+    `Catatan: Link hanya bisa dipakai 1x per orang. Jangan dibagikan ke orang lain.`,
+});
 
-    const channelInviteLink = channelInvite.data.result.invite_link;
-
-    // ✅ KIRIM PESAN KE USER (2 LINK SEKALIGUS)
-    await axios.post(`${TELEGRAM_API}/sendMessage`, {
-      chat_id: chatId,
-      text:
-        `✅ Pembayaran Berhasil!\n\n` +
-        `🎉 Selamat, kamu resmi menjadi member KOINITY VIP.\n\n` +
-        `👥 Grup Diskusi VIP (chat & tanya jawab):\n` +
-        `${vipInviteLink}\n\n` +
-        `📢 Channel KOINITY (info & update penting):\n` +
-        `${channelInviteLink}\n\n` +
-        `Catatan: Setiap link hanya bisa dipakai 1x per orang. Jangan dibagikan ke orang lain.`,
-      
-    });
 
     console.log("✅ PESAN TERKIRIM KE USER:", chatId);
 

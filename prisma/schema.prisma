@@ -4,35 +4,39 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")   // pooler (runtime)
-  directUrl = env("DIRECT_URL")     // non-pool (migration)
+  url       = env("DATABASE_URL") // pooler (runtime)
+  directUrl = env("DIRECT_URL") // non-pool (migration)
 }
 
 model Member {
-  id        String   @id @default(cuid())
-  tgUserId  BigInt   @unique
-  username  String?
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  telegramId String   @unique
+  status     String   @default("ACTIVE")
+  expiredAt  DateTime
+  inviteLink String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  subscriptions Subscription[]
+  subscriptions Subscription[] // ✅ ini yang kurang
 }
 
 model Subscription {
-  id        String   @id @default(cuid())
-  memberId  String
-  plan      String
-  startsAt  DateTime @default(now())
-  endsAt    DateTime
-  status    String   @default("active") // active | expired | canceled
-  warn3SentAt DateTime?
-  warn1SentAt DateTime?
-  kickedAt    DateTime?  // ✅ biar tahu sudah pernah kick
+  id            String    @id @default(cuid())
+  memberId      String
+  plan          String
+  startsAt      DateTime  @default(now())
+  endsAt        DateTime
+  status        String    @default("active") // active | expired | canceled
+  warn3SentAt   DateTime?
+  warn1SentAt   DateTime?
+  kickedAt      DateTime? // ✅ biar tahu sudah pernah kick
   lastCheckedAt DateTime? // (opsional tapi enak buat debug)
-  member    Member   @relation(fields: [memberId], references: [id])
+  member        Member    @relation(fields: [memberId], references: [id])
 
   @@index([endsAt])
   @@index([status])
 }
+
 model Payment {
   id        String   @id @default(cuid())
   paymentId String   @unique

@@ -19,14 +19,15 @@ export async function POST(req: Request) {
     }
 
     // buat link 1x pakai, expire 15 menit
-    const chatId = (process.env.TELEGRAM_VIP_CHAT_ID || "").trim();
+    const chatId = (process.env.TELEGRAM_GROUP_ID
+ || "").trim();
 const botToken = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
 
 if (!botToken) {
   return NextResponse.json({ ok: false, error: "Missing TELEGRAM_BOT_TOKEN" }, { status: 500 });
 }
 if (!chatId) {
-  return NextResponse.json({ ok: false, error: "Missing TELEGRAM_VIP_CHAT_ID" }, { status: 500 });
+  return NextResponse.json({ ok: false, error: "Missing TELEGRAM_GROUP_ID" }, { status: 500 });
 }
 
     const res = await fetch(`https://api.telegram.org/bot${botToken}{process.env.TELEGRAM_BOT_TOKEN}/createChatInviteLink`, {

@@ -1,5 +1,4 @@
 import prisma from "../../lib/prisma.js";
-import axios from "axios";
 
 export default async function handler(req, res) {
   // Vercel Cron biasanya GET
@@ -31,10 +30,8 @@ export default async function handler(req, res) {
       endsAt: { lte: now },
       kickedAt: null,
     },
-    include: {
-      member: true,
-    },
-    take: 200, // safety: jangan kebanyakan sekali jalan
+    include: { member: true },
+    take: 200,
   });
 
   let kicked = 0;
@@ -43,13 +40,13 @@ export default async function handler(req, res) {
 
   for (const sub of expiredSubs) {
     const tgUserIdBigInt = sub?.member?.tgUserId;
+
     if (!tgUserIdBigInt) {
       failed++;
       errors.push({ subId: sub.id, reason: "Missing member.tgUserId" });
       continue;
     }
 
-    // Prisma: tgUserId BigInt → ubah ke string/number aman untuk payload
     const userId = tgUserIdBigInt.toString();
 
     try {
@@ -60,10 +57,16 @@ export default async function handler(req, res) {
         user_id: userId,
       };
 
-      const tgRes = await axios.post(url, payload);
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-      if (!tgRes.data?.ok) {
-        throw new Error(tgRes.data?.description || "Telegram banChatMember failed");
+      const tgData = await resp.json().catch(() => null);
+
+      if (!resp.ok || !tgData?.ok) {
+        throw new Error(tgData?.description || `Telegram banChatMember failed (${resp.status})`);
       }
 
       // 3) Update DB: tandai expired + kicked
@@ -79,7 +82,11 @@ export default async function handler(req, res) {
       kicked++;
     } catch (e) {
       failed++;
-      errors.push({ subId: sub.id, tgUserId: userId, error: String(e?.message || e) });
+      errors.push({
+        subId: sub.id,
+        tgUserId: userId,
+        error: String(e?.message || e),
+      });
 
       // tetap update lastCheckedAt supaya kebaca pernah dicek
       try {
@@ -97,6 +104,6 @@ export default async function handler(req, res) {
     checked: expiredSubs.length,
     kicked,
     failed,
-    errors: errors.slice(0, 20), // batasi output
+    errors: errors.slice(0, 20),
   });
 }

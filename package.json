@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "next dev",
+    "postinstall": "prisma generate",
     "build": "echo \"skip build, handled by Vercel\"",
     "start": "vercel start",
     "lint": "echo 'No ESLint configured - skipping lint check'"

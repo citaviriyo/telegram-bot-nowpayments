@@ -22,13 +22,49 @@ function parseOrderId(orderId: string): { telegramId: string; plan: string; days
   return null;
 }
 
+/**
+ * Fallback kalau order_id null dari NowPayments.
+ * Expect order_description seperti:
+ * - "KOINITY|664884930|1bulan"
+ * - "KOINITY|664884930|3bulan"
+ * - "KOINITY|664884930|12bulan"
+ * - "KOINITY|664884930|1tahun"
+ */
+function parseFromOrderDescription(desc: string): { telegramId: string; plan: string; days: number } | null {
+  if (!desc) return null;
+
+  const parts = desc.split("|").map((s) => s.trim());
+  if (parts.length < 3) return null;
+
+  const telegramId = parts[1];
+  const paketRaw = parts[2].toLowerCase();
+
+  // mapping paket → days
+  if (paketRaw.includes("1bulan")) return { telegramId, plan: "vip", days: 30 };
+  if (paketRaw.includes("3bulan")) return { telegramId, plan: "vip", days: 90 };
+  if (paketRaw.includes("12bulan")) return { telegramId, plan: "vip", days: 365 };
+  if (paketRaw.includes("1tahun") || paketRaw.includes("12bln")) return { telegramId, plan: "vip", days: 365 };
+
+  // fallback: kalau ada angka, anggap "X bulan"
+  const m = paketRaw.match(/(\d+)/);
+  if (m) {
+    const n = Number(m[1]);
+    if (!Number.isNaN(n) && n > 0) return { telegramId, plan: "vip", days: n * 30 };
+  }
+
+  return null;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
 
     const paymentId = String(body.payment_id || "");
     const status = String(body.payment_status || "unknown");
-    const orderId = String(body.order_id || "");
+
+    // order_id bisa null (contoh payload lo), jadi jangan String(null) => "null"
+    const orderId = body.order_id ? String(body.order_id) : "";
+    const orderDescription = String(body.order_description || "");
 
     if (!paymentId) {
       return NextResponse.json({ ok: false, error: "payment_id missing" }, { status: 400 });
@@ -46,12 +82,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ignored: status });
     }
 
-    const parsed = parseOrderId(orderId);
+    // 3) Coba parse dari order_id, kalau gagal fallback ke order_description
+    let parsed = orderId ? parseOrderId(orderId) : null;
+    if (!parsed) parsed = parseFromOrderDescription(orderDescription);
+
     if (!parsed) {
       return NextResponse.json({
         ok: true,
-        warning: "finished but order_id format not recognized",
-        orderId,
+        warning: "finished but cannot extract telegramId/days from order_id or order_description",
+        orderId: orderId || null,
+        orderDescription: orderDescription || null,
       });
     }
 
@@ -60,7 +100,7 @@ export async function POST(req: Request) {
     const now = new Date();
     const endsAt = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
-    // 3) Upsert member (schema lo: telegramId, status, expiredAt)
+    // 4) Upsert member
     const member = await prisma.member.upsert({
       where: { telegramId },
       create: {
@@ -74,7 +114,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // 4) Buat subscription baru (schema lo: plan, startsAt, endsAt, status, lastCheckedAt)
+    // 5) Buat subscription baru (riwayat)
     await prisma.subscription.create({
       data: {
         memberId: member.id,

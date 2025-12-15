@@ -26,7 +26,8 @@ model Subscription {
   status    String   @default("active") // active | expired | canceled
   warn3SentAt DateTime?
   warn1SentAt DateTime?
-
+  kickedAt    DateTime?  // ✅ biar tahu sudah pernah kick
+  lastCheckedAt DateTime? // (opsional tapi enak buat debug)
   member    Member   @relation(fields: [memberId], references: [id])
 
   @@index([endsAt])

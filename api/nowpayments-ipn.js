@@ -1,79 +1,48 @@
 // /api/nowpayments-ipn.js
-
-const axios = require("axios");
-
-const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
-const VIP_GROUP_ID = -1002592772128; // KOINITY VIP
+// Legacy endpoint (dash). Jangan taruh logic bisnis di sini.
+// Tugasnya: forward payload ke endpoint baru /api/nowpayments/ipn
 
 module.exports = async (req, res) => {
   try {
-    const data = req.body;
+    const body = req.body || {};
 
-    console.log("✅ IPN MASUK:", JSON.stringify(data, null, 2));
+    // ✅ bukti endpoint legacy kepanggil
+    console.log("🟦 FORWARDER HIT /api/nowpayments-ipn", body?.payment_id, body?.payment_status);
 
-    // ✅ Hanya proses kalau benar-benar selesai
-    if (data.payment_status !== "finished") {
-      console.log("ℹ️ Payment status bukan 'finished', diabaikan.");
-      return res.status(200).json({ status: "ignored" });
+    const proto = req.headers["x-forwarded-proto"] || "https";
+    const host = req.headers.host;
+
+    // forward signature header (case-insensitive)
+    const sig =
+      req.headers["x-nowpayments-sig"] ||
+      req.headers["X-NOWPAYMENTS-SIG"] ||
+      req.headers["x-nowpayments-sig".toLowerCase()];
+
+    const headers = { "Content-Type": "application/json" };
+    if (sig) headers["x-nowpayments-sig"] = sig;
+
+    const r = await fetch(`${proto}://${host}/api/nowpayments/ipn`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { raw: text };
     }
 
-    // ✅ Ambil chat_id dari order_description
-    // Format WAJIB: KOINITY|<TELEGRAM_ID>|<PAKET>
-    const desc = data.order_description || "";
-    console.log("ℹ️ order_description:", desc);
+    // ✅ bukti forward berhasil dan status apa yang dibalik
+    console.log("🟩 FORWARDED RESULT /api/nowpayments/ipn status=", r.status);
 
-    const parts = desc.split("|");
-    console.log("ℹ️ parts:", parts);
-
-    if (parts.length < 2) {
-      console.log("❌ GAGAL PARSE CHAT ID, FORMAT SALAH");
-      return res.status(200).json({ status: "invalid_description" });
-    }
-
-    const rawChatId = parts[1];
-    const chatId = parseInt(rawChatId, 10);
-
-    if (isNaN(chatId)) {
-      console.log("❌ CHAT ID BUKAN ANGKA:", rawChatId);
-      return res.status(200).json({ status: "invalid_chat_id" });
-    }
-
-    console.log("✅ CHAT ID TERBACA:", chatId);
-
-     // ✅ BUAT INVITE LINK 1x PAKAI UNTUK GRUP VIP
-    const vipInvite = await axios.post(
-      `${TELEGRAM_API}/createChatInviteLink`,
-      {
-        chat_id: VIP_GROUP_ID,
-        member_limit: 1,
-      }
-    );
-
-    console.log("✅ INVITE LINK GRUP VIP:", vipInvite.data);
-
-    const vipInviteLink = vipInvite.data.result.invite_link;
-
-   
-
-    // ✅ KIRIM PESAN KE USER (1 LINK )
-   await axios.post(`${TELEGRAM_API}/sendMessage`, {
-  chat_id: chatId,
-  text:
-    `🎉 Pembayaran Berhasil!\n\n` +
-    `✨ Selamat, kamu resmi menjadi member KOINITY VIP.\n\n` +
-    `💬 Akses KOINITY VIP (semua forum & broadcast):\n` +
-    `${vipInviteLink}\n\n` +
-    `Catatan: Link hanya bisa dipakai 1x per orang. Jangan dibagikan ke orang lain.`,
-});
-
-
-    console.log("✅ PESAN TERKIRIM KE USER:", chatId);
-
-    return res.status(200).json({ success: true });
-  } catch (err) {
-    console.error("❌ IPN ERROR DETAIL:", err.response?.data || err.message);
-
-    // Supaya gateway nggak retry terus, tetap balas 200
-    return res.status(200).json({ error: "telegram_failed" });
+    // Balikin status yg sama dari endpoint baru
+    return res.status(r.status).json(data);
+  } catch (e) {
+    console.log("🟥 FORWARDER ERROR", String(e?.message || e));
+    // Demi mencegah retry berulang dari gateway, tetap 200
+    return res.status(200).json({ ok: false, error: String(e?.message || e) });
   }
 };

@@ -13,15 +13,44 @@ const prisma = global.prisma ?? new PrismaClient();
 if (process.env.NODE_ENV !== "production") global.prisma = prisma;
 
 /**
- * Optional signature verify (recommended).
- * Aktif kalau env NOWPAYMENTS_IPN_SECRET di-set.
+ * Safe log DB target (mask).
+ * Biar kita tau Vercel nulis ke DB yang mana.
  */
-function verifyNowPaymentsSig(rawBody: string, sigHeader: string | null) {
+function maskDbUrl(url?: string | null) {
+  if (!url) return "(missing)";
+  try {
+    const u = new URL(url);
+    const host = u.host;
+    const db = u.pathname?.replace("/", "") || "(no-db)";
+    // jangan log user/pass/query
+    return `${u.protocol}//${host}/${db}`;
+  } catch {
+    return "(invalid DATABASE_URL)";
+  }
+}
+
+/**
+ * NOWPayments signature verify (recommended).
+ * Aktif kalau env NOWPAYMENTS_IPN_SECRET di-set.
+ * NOWPayments umumnya pakai HMAC SHA-512 dari JSON yang keys-nya di-sort.
+ */
+function verifyNowPaymentsSigFromJson(body: any, sigHeader: string | null) {
   const secret = process.env.NOWPAYMENTS_IPN_SECRET;
   if (!secret) return { ok: true, skipped: true };
   if (!sigHeader) return { ok: false, error: "Missing x-nowpayments-sig" };
 
-  const h = crypto.createHmac("sha512", secret).update(rawBody).digest("hex");
+  const sorted = Object.keys(body || {})
+    .sort()
+    .reduce((acc: any, k) => {
+      acc[k] = body[k];
+      return acc;
+    }, {});
+
+  const h = crypto
+    .createHmac("sha512", secret)
+    .update(JSON.stringify(sorted))
+    .digest("hex");
+
   return h === sigHeader ? { ok: true } : { ok: false, error: "Invalid signature" };
 }
 
@@ -51,11 +80,14 @@ function parseFromOrderDescription(desc: string): { telegramId: string; plan: st
   const parts = desc.split("|").map((s) => s.trim());
   if (parts.length < 3) return null;
 
-  const telegramId = parts[1];
-  const paketRaw = parts[2].toLowerCase();
+  const telegramId = String(parts[1] || "").trim();
+  const paketRaw = String(parts[2] || "").trim().toLowerCase();
+
+  if (!telegramId) return null;
 
   if (paketRaw.includes("1bulan")) return { telegramId, plan: "vip", days: 30 };
   if (paketRaw.includes("3bulan")) return { telegramId, plan: "vip", days: 90 };
+  if (paketRaw.includes("6bulan")) return { telegramId, plan: "vip", days: 180 };
   if (paketRaw.includes("12bulan")) return { telegramId, plan: "vip", days: 365 };
   if (paketRaw.includes("1tahun") || paketRaw.includes("12bln")) return { telegramId, plan: "vip", days: 365 };
 
@@ -69,6 +101,7 @@ function parseFromOrderDescription(desc: string): { telegramId: string; plan: st
 }
 
 function fmtDateJakarta(d: Date) {
+  // simple date-only string (ISO date)
   return d.toISOString().slice(0, 10);
 }
 
@@ -104,10 +137,7 @@ async function telegramCreateInviteLink() {
 }
 
 function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 async function telegramSendMessageHTML(telegramId: string, html: string) {
@@ -133,22 +163,36 @@ async function telegramSendMessageHTML(telegramId: string, html: string) {
 
 export async function POST(req: Request) {
   try {
-    // 0) raw body for signature + debug
+    // 0) raw body (buat debug)
     const raw = await req.text();
+    let body: any = {};
+    try {
+      body = raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      console.log("❌ IPN ERROR: invalid JSON body");
+      return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
+    }
+
     const sig = req.headers.get("x-nowpayments-sig");
-    const v = verifyNowPaymentsSig(raw, sig);
+    const v = verifyNowPaymentsSigFromJson(body, sig);
     if (!v.ok) {
       console.log("❌ IPN SIG FAIL:", v);
       return NextResponse.json({ ok: false, error: "signature verification failed" }, { status: 401 });
     }
-
-    const body = raw ? JSON.parse(raw) : {};
 
     // ===== DEBUG LOG (FULL PAYLOAD) =====
     console.log("========================================");
     console.log("✅ NOWPAYMENTS IPN HIT");
     console.log("🕒 time:", new Date().toISOString());
     console.log("🌐 url:", req.url);
+
+    // DB target proof
+    console.log("🧬 DB TARGET:", {
+      DATABASE_URL: maskDbUrl(process.env.DATABASE_URL),
+      DIRECT_URL: maskDbUrl((process.env as any).DIRECT_URL),
+      NODE_ENV: process.env.NODE_ENV,
+    });
+
     console.log("📦 headers (subset):", {
       "content-type": req.headers.get("content-type"),
       "user-agent": req.headers.get("user-agent"),
@@ -156,8 +200,10 @@ export async function POST(req: Request) {
       "x-real-ip": req.headers.get("x-real-ip"),
       "x-nowpayments-sig": sig ? "(present)" : "(missing)",
     });
+
     console.log("📨 IPN RAW JSON:");
     console.log(JSON.stringify(body, null, 2));
+
     console.log("🧾 IPN SUMMARY:", {
       payment_id: body?.payment_id,
       payment_status: body?.payment_status,
@@ -219,7 +265,9 @@ export async function POST(req: Request) {
       });
     }
 
-    const { telegramId, plan, days } = parsed;
+    const telegramId = String(parsed.telegramId).trim();
+    const plan = parsed.plan;
+    const days = parsed.days;
 
     const now = new Date();
 
@@ -257,6 +305,15 @@ export async function POST(req: Request) {
       }
 
       return m;
+    });
+
+    // ✅ PROOF: baca ulang member dari DB (kalau ini ada, berarti Neon nulis bener)
+    const memberCheck = await prisma.member.findUnique({ where: { telegramId } });
+    console.log("✅ NEON WRITE PROOF:", {
+      upsertMemberId: member.id,
+      telegramId,
+      memberCheckExists: !!memberCheck,
+      memberExpiredAt: memberCheck?.expiredAt?.toISOString?.(),
     });
 
     // 5) create invite link 1x + simpan

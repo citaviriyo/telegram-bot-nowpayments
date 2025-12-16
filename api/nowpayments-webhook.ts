@@ -167,7 +167,7 @@ Cek grup Anda sekarang juga 👇
 • Update harian
 • Community access
 
-Terima kasih telah berlangganan! 🙏
+Terima kasih telah berlangganan! ❤️🙏
     `;
 
     await telegramBot.sendMessage(telegram_chat_id, successMessage);

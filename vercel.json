@@ -1,12 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/reconcile",
+      "path": "/api/cron/tick",
       "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/cron/check-expired",
-      "schedule": "5 0 * * *"
     }
   ]
 }

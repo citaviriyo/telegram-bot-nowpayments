@@ -128,6 +128,7 @@ export async function POST(req: Request) {
     }
 
     const body = raw ? JSON.parse(raw) : {};
+    console.log("🔥 ROUTE.TS HIT ✅", body?.payment_id, body?.payment_status);
 
     const paymentId = String(body.payment_id || "");
     const incomingStatus = String(body.payment_status || "unknown");

@@ -204,16 +204,20 @@ export async function POST(req: Request) {
 
     const now = new Date();
 
-    // ✅ Ambil baseTime dari subscription active terakhir (source of truth)
+    const maxFutureMs = 400 * 24 * 60 * 60 * 1000; // 400 hari guardrail
+
+    // source of truth: last active sub, TAPI harus masuk akal
     const lastActiveSub = await prisma.subscription.findFirst({
       where: { member: { telegramId }, status: "active", plan },
       orderBy: { endsAt: "desc" },
     });
 
-    // fallback: member.expiredAt (tapi kasih guardrail anti data ngaco)
-    const prevMember = await prisma.member.findUnique({ where: { telegramId } });
+    const lastSubOk =
+      lastActiveSub?.endsAt &&
+      lastActiveSub.endsAt.getTime() > now.getTime() &&
+      lastActiveSub.endsAt.getTime() - now.getTime() < maxFutureMs;
 
-    const maxFutureMs = 400 * 24 * 60 * 60 * 1000; // 400 hari
+    const prevMember = await prisma.member.findUnique({ where: { telegramId } });
     const memberExpiredOk =
       prevMember?.expiredAt &&
       prevMember.expiredAt.getTime() > now.getTime() &&
@@ -222,12 +226,16 @@ export async function POST(req: Request) {
     let baseTime = now;
     let baseTimeSource: string = "now";
 
-    if (lastActiveSub?.endsAt && lastActiveSub.endsAt.getTime() > now.getTime()) {
+    if (lastSubOk && lastActiveSub?.endsAt) {
       baseTime = lastActiveSub.endsAt;
       baseTimeSource = "subscription.endsAt";
     } else if (memberExpiredOk && prevMember?.expiredAt) {
       baseTime = prevMember.expiredAt;
       baseTimeSource = "member.expiredAt";
+    } else {
+      // kalau data lama corrupt, kita mulai dari sekarang
+      baseTime = now;
+      baseTimeSource = lastActiveSub?.endsAt ? "now (guardrail:sub too-far)" : "now";
     }
 
     const endsAt = new Date(baseTime.getTime() + days * 24 * 60 * 60 * 1000);
@@ -240,7 +248,9 @@ export async function POST(req: Request) {
       baseTimeSource,
       computedEndsAt: endsAt.toISOString(),
       lastActiveSubEndsAt: lastActiveSub?.endsAt?.toISOString?.() ?? null,
+      lastSubOk,
       prevMemberExpiredAt: prevMember?.expiredAt?.toISOString?.() ?? null,
+      memberExpiredOk,
     });
 
     const member = await prisma.$transaction(async (tx) => {

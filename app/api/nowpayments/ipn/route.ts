@@ -67,24 +67,28 @@ function parseFromOrderDescription(desc: string): { telegramId: string; plan: st
 }
 
 function fmtDateJakarta(d: Date) {
-  // biar user ga bingung timezone; simple YYYY-MM-DD
   return d.toISOString().slice(0, 10);
 }
 
-async function telegramCreateInviteLink(expireAt: Date) {
+/**
+ * Telegram invite link (1x pakai).
+ * NOTE: expire_date Telegram max ~31 hari dari sekarang, jadi jangan set endsAt (bisa 30/90/365).
+ * Kita set default 24 jam biar aman + link cepat mati kalau bocor.
+ */
+async function telegramCreateInviteLink() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const groupId = process.env.TELEGRAM_GROUP_ID;
   if (!token || !groupId) throw new Error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_GROUP_ID");
 
   const url = `https://api.telegram.org/bot${token}/createChatInviteLink`;
-  const expire_date = Math.floor(expireAt.getTime() / 1000);
+  const expire_date = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24 jam dari sekarang
 
   const r = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: Number(groupId),
-      name: "KOINITY VIP Invite",
+      name: "KOINITY VIP Invite (1x)",
       member_limit: 1,
       expire_date,
       creates_join_request: false,
@@ -119,16 +123,47 @@ async function telegramSendMessage(telegramId: string, text: string) {
 
 export async function POST(req: Request) {
   try {
-    // 0) raw body for signature
+    // 0) raw body for signature + debug
     const raw = await req.text();
     const sig = req.headers.get("x-nowpayments-sig");
     const v = verifyNowPaymentsSig(raw, sig);
     if (!v.ok) {
+      console.log("❌ IPN SIG FAIL:", v);
       return NextResponse.json({ ok: false, error: "signature verification failed" }, { status: 401 });
     }
 
     const body = raw ? JSON.parse(raw) : {};
-    console.log("🔥 ROUTE.TS HIT ✅", body?.payment_id, body?.payment_status);
+
+    // ===== DEBUG LOG (FULL PAYLOAD) =====
+    console.log("========================================");
+    console.log("✅ NOWPAYMENTS IPN HIT");
+    console.log("🕒 time:", new Date().toISOString());
+    console.log("🌐 url:", req.url);
+    console.log("📦 headers (subset):", {
+      "content-type": req.headers.get("content-type"),
+      "user-agent": req.headers.get("user-agent"),
+      "x-forwarded-for": req.headers.get("x-forwarded-for"),
+      "x-real-ip": req.headers.get("x-real-ip"),
+      "x-nowpayments-sig": sig ? "(present)" : "(missing)",
+    });
+    console.log("📨 IPN RAW JSON:");
+    console.log(JSON.stringify(body, null, 2));
+    console.log("🧾 IPN SUMMARY:", {
+      payment_id: body?.payment_id,
+      payment_status: body?.payment_status,
+      order_id: body?.order_id,
+      order_description: body?.order_description,
+      price_amount: body?.price_amount,
+      price_currency: body?.price_currency,
+      pay_amount: body?.pay_amount,
+      pay_currency: body?.pay_currency,
+      actually_paid: body?.actually_paid,
+      outcome_amount: body?.outcome_amount,
+      outcome_currency: body?.outcome_currency,
+      invoice_id: body?.invoice_id,
+    });
+    console.log("========================================");
+    // ===== END DEBUG LOG =====
 
     const paymentId = String(body.payment_id || "");
     const incomingStatus = String(body.payment_status || "unknown");
@@ -150,11 +185,13 @@ export async function POST(req: Request) {
 
     // 2) hanya finished yang memicu aktivasi
     if (incomingStatus !== "finished") {
+      console.log("ℹ️ IPN ignored status:", incomingStatus, "paymentId:", paymentId);
       return NextResponse.json({ ok: true, ignored: incomingStatus });
     }
 
     // 2b) idempotency: kalau sebelumnya sudah finished, stop (hindari subscription & invite dobel)
     if (existing?.status === "finished") {
+      console.log("ℹ️ alreadyProcessed finished:", paymentId);
       return NextResponse.json({ ok: true, alreadyProcessed: true });
     }
 
@@ -163,6 +200,7 @@ export async function POST(req: Request) {
     if (!parsed) parsed = parseFromOrderDescription(orderDescription);
 
     if (!parsed) {
+      console.log("⚠️ finished but cannot parse telegramId/days", { orderId, orderDescription, paymentId });
       return NextResponse.json({
         ok: true,
         warning: "finished but cannot extract telegramId/days from order_id or order_description",
@@ -225,8 +263,8 @@ export async function POST(req: Request) {
       return m;
     });
 
-    // 5) create invite link + simpan ke member.inviteLink
-    const inviteLink = await telegramCreateInviteLink(endsAt);
+    // 5) create invite link 1x + simpan
+    const inviteLink = await telegramCreateInviteLink();
     await prisma.member.update({
       where: { id: member.id },
       data: { inviteLink },
@@ -242,12 +280,15 @@ export async function POST(req: Request) {
 
     await telegramSendMessage(telegramId, msg);
 
+    console.log("✅ ACTIVATED:", { telegramId, plan, days, endsAt: endsAt.toISOString(), paymentId });
+
     return NextResponse.json({
       ok: true,
       activated: { telegramId, plan, days, endsAt },
       telegram: { inviteLink },
     });
   } catch (e: any) {
+    console.log("❌ IPN ERROR:", e);
     return NextResponse.json({ ok: false, error: String(e?.message ?? e) }, { status: 500 });
   }
 }

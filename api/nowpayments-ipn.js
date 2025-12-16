@@ -1,22 +1,39 @@
 // /api/nowpayments-ipn.js
 // Legacy endpoint (dash). Jangan taruh logic bisnis di sini.
-// Tugasnya: forward payload ke endpoint baru /api/nowpayments/ipn
+// Tugasnya: forward RAW payload ke endpoint baru /api/nowpayments/ipn
 
 module.exports = async (req, res) => {
   try {
-    const body = req.body || {};
-
-    // ✅ bukti endpoint legacy kepanggil
-    console.log("🟦 FORWARDER HIT /api/nowpayments-ipn", body?.payment_id, body?.payment_status);
-
+    // Ambil proto+host untuk panggil endpoint baru di domain yang sama
     const proto = req.headers["x-forwarded-proto"] || "https";
     const host = req.headers.host;
 
-    // forward signature header (case-insensitive)
+    // Forward signature header (case-insensitive)
     const sig =
       req.headers["x-nowpayments-sig"] ||
       req.headers["X-NOWPAYMENTS-SIG"] ||
       req.headers["x-nowpayments-sig".toLowerCase()];
+
+    // Ambil RAW body biar payload persis (anti req.body kosong / beda format)
+    const rawBody = await new Promise((resolve, reject) => {
+      let data = "";
+      req.on("data", (chunk) => (data += chunk));
+      req.on("end", () => resolve(data));
+      req.on("error", reject);
+    });
+
+    // Log minimal (jangan spam)
+    let parsed;
+    try {
+      parsed = rawBody ? JSON.parse(rawBody) : {};
+    } catch {
+      parsed = { _raw: rawBody?.slice?.(0, 200) || "" };
+    }
+    console.log(
+      "🟦 FORWARDER HIT /api/nowpayments-ipn",
+      parsed?.payment_id,
+      parsed?.payment_status
+    );
 
     const headers = { "Content-Type": "application/json" };
     if (sig) headers["x-nowpayments-sig"] = sig;
@@ -24,7 +41,7 @@ module.exports = async (req, res) => {
     const r = await fetch(`${proto}://${host}/api/nowpayments/ipn`, {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: rawBody || "{}",
     });
 
     const text = await r.text();
@@ -35,10 +52,8 @@ module.exports = async (req, res) => {
       data = { raw: text };
     }
 
-    // ✅ bukti forward berhasil dan status apa yang dibalik
     console.log("🟩 FORWARDED RESULT /api/nowpayments/ipn status=", r.status);
 
-    // Balikin status yg sama dari endpoint baru
     return res.status(r.status).json(data);
   } catch (e) {
     console.log("🟥 FORWARDER ERROR", String(e?.message || e));

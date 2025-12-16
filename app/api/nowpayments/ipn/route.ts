@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import crypto from "crypto";
 
+export const runtime = "nodejs";
+
 declare global {
   // eslint-disable-next-line no-var
   var prisma: PrismaClient | undefined;
@@ -72,8 +74,9 @@ function fmtDateJakarta(d: Date) {
 
 /**
  * Telegram invite link (1x pakai).
- * NOTE: expire_date Telegram max ~31 hari dari sekarang, jadi jangan set endsAt (bisa 30/90/365).
- * Kita set default 24 jam biar aman + link cepat mati kalau bocor.
+ * NOTE: expire_date Telegram max ~31 hari dari sekarang.
+ * Jadi jangan pakai endsAt kalau membership 90/365 hari.
+ * Kita set 24 jam dari sekarang biar aman.
  */
 async function telegramCreateInviteLink() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -81,7 +84,7 @@ async function telegramCreateInviteLink() {
   if (!token || !groupId) throw new Error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_GROUP_ID");
 
   const url = `https://api.telegram.org/bot${token}/createChatInviteLink`;
-  const expire_date = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24 jam dari sekarang
+  const expire_date = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24 jam
 
   const r = await fetch(url, {
     method: "POST",
@@ -100,7 +103,14 @@ async function telegramCreateInviteLink() {
   return j.result.invite_link as string;
 }
 
-async function telegramSendMessage(telegramId: string, text: string) {
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+async function telegramSendMessageHTML(telegramId: string, html: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) throw new Error("Missing TELEGRAM_BOT_TOKEN");
 
@@ -110,8 +120,8 @@ async function telegramSendMessage(telegramId: string, text: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: Number(telegramId),
-      text,
-      parse_mode: "Markdown",
+      text: html,
+      parse_mode: "HTML",
       disable_web_page_preview: true,
     }),
   });
@@ -230,33 +240,19 @@ export async function POST(req: Request) {
         update: { status: "ACTIVE", expiredAt: endsAt },
       });
 
-      // cari subscription aktif terakhir untuk plan ini
       const active = await tx.subscription.findFirst({
         where: { memberId: m.id, status: "active", plan },
         orderBy: { endsAt: "desc" },
       });
 
       if (active) {
-        // extend subscription aktif
         await tx.subscription.update({
           where: { id: active.id },
-          data: {
-            endsAt,
-            lastCheckedAt: now,
-            status: "active",
-          },
+          data: { endsAt, lastCheckedAt: now, status: "active" },
         });
       } else {
-        // buat baru
         await tx.subscription.create({
-          data: {
-            memberId: m.id,
-            plan,
-            startsAt: now,
-            endsAt,
-            status: "active",
-            lastCheckedAt: now,
-          },
+          data: { memberId: m.id, plan, startsAt: now, endsAt, status: "active", lastCheckedAt: now },
         });
       }
 
@@ -270,15 +266,15 @@ export async function POST(req: Request) {
       data: { inviteLink },
     });
 
-    // 6) DM user
-    const msg =
-      `✅ *Pembayaran berhasil!*\n\n` +
-      `🎟️ VIP aktif *${days} hari*\n` +
-      `⏳ Sampai: *${fmtDateJakarta(endsAt)}*\n\n` +
-      `👉 Link join VIP Group (1x pakai):\n${inviteLink}\n\n` +
+    // 6) DM user (HTML, anti error entity)
+    const html =
+      `✅ <b>Pembayaran berhasil!</b>\n\n` +
+      `🎟️ VIP aktif <b>${escapeHtml(String(days))} hari</b>\n` +
+      `⏳ Sampai: <b>${escapeHtml(fmtDateJakarta(endsAt))}</b>\n\n` +
+      `👉 Link join VIP Group (1x pakai):\n${escapeHtml(inviteLink)}\n\n` +
       `Kalau link expired, chat admin.`;
 
-    await telegramSendMessage(telegramId, msg);
+    await telegramSendMessageHTML(telegramId, html);
 
     console.log("✅ ACTIVATED:", { telegramId, plan, days, endsAt: endsAt.toISOString(), paymentId });
 

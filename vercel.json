@@ -1,2 +1,8 @@
-{}
-
+{
+  "rewrites": [
+    {
+      "source": "/api/nowpayments-ipn",
+      "destination": "/api/nowpayments/ipn"
+    }
+  ]
+}

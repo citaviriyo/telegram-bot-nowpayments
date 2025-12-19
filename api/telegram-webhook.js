@@ -62,12 +62,48 @@ if (msg) {
     text:
 `✨ Selamat Datang di KOINITY BOT ✨
 
-Di sini kamu bisa:
-✅ Lihat paket membership
-✅ Bayar pakai kripto via NOWPayments
-✅ Dapat akses grup & konten premium
+Bukan untuk semua orang.
+KOINITY dibuat bagi mereka yang ingin serius membangun posisi,
+bukan sekadar ikut tren dan berharap keberuntungan.
 
-Silakan pilih menu di bawah untuk mulai ⬇️`,
+Kalau kamu sudah cukup lama di crypto,
+mungkin kamu pernah ngerasa seperti ini 👇
+
+• Chart dibuka hampir setiap hari, tapi tetap ragu ambil posisi  
+• Masuk kepagian atau malah telat, lalu ujungnya nyalahin market  
+• Pernah cuan, tapi sulit konsisten saat market berubah  
+• Terlalu banyak opini, tapi tidak ada arah yang benar-benar jelas  
+• Merasa sebenarnya bisa lebih baik… tapi selalu sendirian  
+
+Masalahnya sering kali bukan soal kepintaran,
+melainkan karena tidak punya sistem dan lingkungan yang tepat.
+
+Di sinilah KOINITY dibangun.
+Bukan untuk menjanjikan hasil instan,
+tapi untuk mengisi celah yang sering tidak disadari banyak trader.
+
+Di KOINITY, kamu tidak sekadar dapat “sinyal”.
+
+Kamu akan belajar:
+• bagaimana membaca konteks market, bukan hanya indikator  
+• kapan harus agresif, dan kapan justru lebih baik menunggu  
+• kenapa sebuah posisi diambil — dan kapan waktunya ditutup  
+• bagaimana trader berpengalaman berpikir saat kondisi market berubah  
+
+Semua dibahas bersama komunitas yang satu frekuensi,
+dengan pendekatan yang lebih tenang, terukur, dan bertanggung jawab.
+
+🔍 Lewat bot ini kamu bisa:
+✅ Melihat paket membership eksklusif  
+✅ Berlangganan dengan kripto (NOWPayments)  
+✅ Mendapat akses ke grup & konten premium  
+✅ Update insight & panduan dari ekosistem KOINITY  
+
+Pusat akses membership & konten premium KOINITY,
+untuk kamu yang ingin naik level di crypto —
+bukan spekulasi asal.
+
+👇 Silakan pilih menu di bawah untuk mulai`,
     reply_markup: {
       inline_keyboard: [
         [

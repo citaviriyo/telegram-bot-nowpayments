@@ -3,3 +3,8 @@
 node_modules/
 .next/
 
+app_backup/
+_app_backup/
+*.bak
+postcss.config.cjs
+tailwind.config.js

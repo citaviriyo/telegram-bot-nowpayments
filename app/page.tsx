@@ -192,7 +192,7 @@ export default function HomePage() {
               <a href={TG_BOT_URL} style={styles.greenBtnWide}>
                 🚀 Mulai dari koinity_bot
               </a>
-              <div style={styles.miniNote2}>👇 Silakan pilih menu di bot untuk mulai.</div>
+              <div style={styles.miniNote2}> 👆 Silakan pilih menu di bot untuk mulai.</div>
             </div>
           </div>
         </div>
@@ -278,7 +278,7 @@ export default function HomePage() {
             <div>
               <div style={styles.footerBrand}>Koinity</div>
               <div style={styles.footerText}>
-                VIP Membership via Telegram — hitam & kuning, tegas, terukur, bertanggung jawab.
+                VIP Membership via Telegram — belajar, diskusi, dan eksekusi bareng komunitas satu frekuensi.
               </div>
             </div>
             <div style={styles.footerLinks}>

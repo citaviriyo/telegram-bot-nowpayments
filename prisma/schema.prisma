@@ -4,8 +4,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL") // pooler (runtime)
-  directUrl = env("DIRECT_URL") // non-pool (migration)
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Member {
@@ -17,7 +17,7 @@ model Member {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  subscriptions Subscription[] // ✅ ini yang kurang
+  subscriptions Subscription[]
 }
 
 model Subscription {
@@ -26,11 +26,11 @@ model Subscription {
   plan          String
   startsAt      DateTime  @default(now())
   endsAt        DateTime
-  status        String    @default("active") // active | expired | canceled
+  status        String    @default("active")
   warn3SentAt   DateTime?
   warn1SentAt   DateTime?
-  kickedAt      DateTime? // ✅ biar tahu sudah pernah kick
-  lastCheckedAt DateTime? // (opsional tapi enak buat debug)
+  kickedAt      DateTime?
+  lastCheckedAt DateTime?
   member        Member    @relation(fields: [memberId], references: [id])
 
   @@index([endsAt])
@@ -38,10 +38,12 @@ model Subscription {
 }
 
 model Payment {
-  id        String   @id @default(cuid())
-  paymentId String   @unique
-  status    String
-  raw       Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String    @id @default(cuid())
+  paymentId    String    @unique
+  status       String
+  raw          Json?
+  inviteSentAt DateTime?  // ✅ lock: supaya invite cuma terkirim 1x
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
+

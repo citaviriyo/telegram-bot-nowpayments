@@ -12,21 +12,22 @@ declare global {
 const prisma = global.prisma ?? new PrismaClient();
 if (process.env.NODE_ENV !== "production") global.prisma = prisma;
 
-function maskDbUrl(url?: string | null) {
-  if (!url) return "(missing)";
-  try {
-    const u = new URL(url);
-    const host = u.host;
-    const db = u.pathname?.replace("/", "") || "(no-db)";
-    return `${u.protocol}//${host}/${db}`;
-  } catch {
-    return "(invalid DATABASE_URL)";
-  }
+/* =========================
+   UTILS
+========================= */
+
+function escapeHtml(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/**
+ * NOWPayments signature:
+ * - kalau NOWPAYMENTS_IPN_SECRET tidak diset -> skip verify (dev mode)
+ * - kalau diset -> wajib cocok
+ */
 function verifyNowPaymentsSigFromRaw(rawBody: string, sigHeader: string | null) {
   const secret = process.env.NOWPAYMENTS_IPN_SECRET;
-  if (!secret) return { ok: true, skipped: true as const };
+  if (!secret) return { ok: true as const, skipped: true as const };
 
   if (!sigHeader) return { ok: false as const, error: "Missing x-nowpayments-sig" };
 
@@ -38,47 +39,30 @@ function verifyNowPaymentsSigFromRaw(rawBody: string, sigHeader: string | null) 
   const a = computed.trim().toLowerCase();
   const b = sigHeader.trim().toLowerCase();
 
-  return a === b
-    ? { ok: true as const }
-    : { ok: false as const, error: "Invalid signature", computedPrefix: a.slice(0, 12) + "…" };
+  return a === b ? { ok: true as const } : { ok: false as const, error: "Invalid signature" };
 }
 
-function parseOrderId(orderId: string): { telegramId: string; plan: string; days: number } | null {
-  const p4 = orderId.match(/^tg_(.+?)_([a-zA-Z0-9-]+)_(\d+)_(\d+)$/);
-  if (p4) return { telegramId: p4[1], plan: p4[2], days: Number(p4[3]) };
-
-  const p3 = orderId.match(/^tg_(.+?)_(\d+)_(\d+)$/);
-  if (p3) return { telegramId: p3[1], plan: "vip", days: Number(p3[2]) };
-
-  return null;
-}
-
-function parseFromOrderDescription(desc: string): { telegramId: string; plan: string; days: number } | null {
+function parseFromOrderDescription(desc: string): { telegramId: string; days: number; plan: string } | null {
   if (!desc) return null;
 
+  // Format dari webhook lo: "KOINITY|<chatId>|1bulan"
   const parts = desc.split("|").map((s) => s.trim());
   if (parts.length < 3) return null;
 
   const telegramId = String(parts[1] || "").trim();
-  const paketRaw = String(parts[2] || "").trim().toLowerCase();
+  const paket = String(parts[2] || "").trim().toLowerCase();
   if (!telegramId) return null;
 
-  if (paketRaw.includes("1bulan")) return { telegramId, plan: "vip", days: 30 };
-  if (paketRaw.includes("3bulan")) return { telegramId, plan: "vip", days: 90 };
-  if (paketRaw.includes("6bulan")) return { telegramId, plan: "vip", days: 180 };
-  if (paketRaw.includes("12bulan")) return { telegramId, plan: "vip", days: 365 };
-  if (paketRaw.includes("1tahun") || paketRaw.includes("12bln")) return { telegramId, plan: "vip", days: 365 };
-
-  const m = paketRaw.match(/(\d+)/);
-  if (m) {
-    const n = Number(m[1]);
-    if (!Number.isNaN(n) && n > 0) return { telegramId, plan: "vip", days: n * 30 };
-  }
+  if (paket.includes("1bulan")) return { telegramId, days: 30, plan: "vip" };
+  if (paket.includes("3bulan")) return { telegramId, days: 90, plan: "vip" };
+  if (paket.includes("1tahun") || paket.includes("12bulan") || paket.includes("12bln"))
+    return { telegramId, days: 365, plan: "vip" };
 
   return null;
 }
 
 function fmtDateJakarta(d: Date) {
+  // simpel & stabil (YYYY-MM-DD)
   return d.toISOString().slice(0, 10);
 }
 
@@ -87,36 +71,28 @@ async function telegramCreateInviteLink() {
   const groupId = process.env.TELEGRAM_GROUP_ID;
   if (!token || !groupId) throw new Error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_GROUP_ID");
 
-  const url = `https://api.telegram.org/bot${token}/createChatInviteLink`;
-  const expire_date = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
-
-  const r = await fetch(url, {
+  const res = await fetch(`https://api.telegram.org/bot${token}/createChatInviteLink`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: Number(groupId),
       name: "KOINITY VIP Invite (1x)",
       member_limit: 1,
-      expire_date,
+      expire_date: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
       creates_join_request: false,
     }),
   });
 
-  const j = await r.json();
-  if (!j.ok) throw new Error(`Telegram createChatInviteLink failed: ${JSON.stringify(j)}`);
-  return j.result.invite_link as string;
-}
-
-function escapeHtml(s: string) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const json = await res.json();
+  if (!json.ok) throw new Error(`Failed to create invite link: ${JSON.stringify(json)}`);
+  return json.result.invite_link as string;
 }
 
 async function telegramSendMessageHTML(telegramId: string, html: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) throw new Error("Missing TELEGRAM_BOT_TOKEN");
 
-  const url = `https://api.telegram.org/bot${token}/sendMessage`;
-  const r = await fetch(url, {
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -127,38 +103,30 @@ async function telegramSendMessageHTML(telegramId: string, html: string) {
     }),
   });
 
-  const j = await r.json();
-  if (!j.ok) throw new Error(`Telegram sendMessage failed: ${JSON.stringify(j)}`);
-  return true;
+  const json = await res.json();
+  if (!json.ok) throw new Error(`Telegram sendMessage failed: ${JSON.stringify(json)}`);
 }
 
+/* =========================
+   IPN HANDLER
+========================= */
+
 export async function POST(req: Request) {
+  const startedAt = Date.now();
+  let paymentIdForUnlock: string | null = null;
+
   try {
-    // 1) RAW body untuk signature verification (wajib)
+    // 1) RAW untuk signature verify
     const raw = await req.text();
-
-    // 2) Verify signature NOWPayments (kalau secret diset)
     const sig = req.headers.get("x-nowpayments-sig");
-    const v = verifyNowPaymentsSigFromRaw(raw, sig);
 
-    if (!v.ok) {
-      console.log("========================================");
-      console.log("❌ NOWPAYMENTS IPN SIGNATURE FAIL");
-      console.log("🕒 time:", new Date().toISOString());
-      console.log("🌐 url:", req.url);
-      console.log("🔐 hasSig:", !!sig, "sigPrefix:", sig ? sig.slice(0, 12) + "…" : "(none)");
-      console.log("🧪 verify:", v);
-      console.log("🧬 DB TARGET:", {
-        DATABASE_URL: maskDbUrl(process.env.DATABASE_URL),
-        DIRECT_URL: maskDbUrl((process.env as any).DIRECT_URL),
-        NODE_ENV: process.env.NODE_ENV,
-      });
-      console.log("📨 RAW (first 500):", raw.slice(0, 500));
-      console.log("========================================");
-      return NextResponse.json({ ok: false, error: "signature verification failed" }, { status: 401 });
+    const verify = verifyNowPaymentsSigFromRaw(raw, sig);
+    if (!verify.ok) {
+      console.log("❌ IPN signature invalid", { sigExists: !!sig });
+      return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
     }
 
-    // 3) Parse JSON setelah signature lolos
+    // 2) parse JSON
     let body: any = {};
     try {
       body = raw ? JSON.parse(raw) : {};
@@ -166,116 +134,87 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
     }
 
-    console.log("========================================");
-    console.log("✅ NOWPAYMENTS IPN HIT");
-    console.log("🕒 time:", new Date().toISOString());
-    console.log("🌐 url:", req.url);
-    console.log("🧪 sigCheck:", v);
-    console.log("🧬 DB TARGET:", {
-      DATABASE_URL: maskDbUrl(process.env.DATABASE_URL),
-      DIRECT_URL: maskDbUrl((process.env as any).DIRECT_URL),
-      NODE_ENV: process.env.NODE_ENV,
-    });
-    console.log("📨 IPN JSON:");
-    console.log(JSON.stringify(body, null, 2));
-    console.log("========================================");
-
     const paymentId = String(body.payment_id || "");
-    const incomingStatus = String(body.payment_status || "unknown");
-    const orderId = body.order_id ? String(body.order_id) : "";
-    const orderDescription = String(body.order_description || "");
+    const status = String(body.payment_status || "unknown").toLowerCase();
+    const desc = String(body.order_description || "");
 
     if (!paymentId) {
       return NextResponse.json({ ok: false, error: "payment_id missing" }, { status: 400 });
     }
+    paymentIdForUnlock = paymentId;
 
-    const existing = await prisma.payment.findUnique({ where: { paymentId } });
-
-    // simpan semua status selalu (audit trail)
+    // 3) simpan audit payment
     await prisma.payment.upsert({
       where: { paymentId },
-      create: { paymentId, status: incomingStatus, raw: body },
-      update: { status: incomingStatus, raw: body },
+      create: { paymentId, status, raw: body },
+      update: { status, raw: body },
     });
 
-    // ✅ proses paid saat confirmed ATAU finished
-    const paid = incomingStatus === "confirmed" || incomingStatus === "finished";
+    // 4) paid status
+    const paid = status === "confirmed" || status === "finished";
     if (!paid) {
-      console.log("ℹ️ IPN ignored status:", incomingStatus, "paymentId:", paymentId);
-      return NextResponse.json({ ok: true, ignored: incomingStatus });
+      // status lain: waiting / sending / partially_paid / failed / expired / refunded dll
+      return NextResponse.json({ ok: true, ignored: status });
     }
 
-    // idempotent: kalau sudah pernah paid, stop
-    if (existing?.status === "confirmed" || existing?.status === "finished") {
-      console.log("ℹ️ alreadyProcessed paid:", paymentId, "prevStatus:", existing.status);
+    /**
+     * 🔒 ATOMIC LOCK (anti double-invite)
+     * Syarat claim:
+     * - paymentId sama
+     * - inviteSentAt masih null
+     *
+     * Kalau ada 2 IPN masuk barengan:
+     * - cuma 1 yang sukses updateMany -> count=1
+     * - sisanya count=0 => alreadyProcessed
+     */
+    const claimed = await prisma.payment.updateMany({
+      where: { paymentId, inviteSentAt: null },
+      data: { inviteSentAt: new Date() },
+    });
+
+    if (claimed.count === 0) {
       return NextResponse.json({ ok: true, alreadyProcessed: true });
     }
 
-    let parsed = orderId ? parseOrderId(orderId) : null;
-    if (!parsed) parsed = parseFromOrderDescription(orderDescription);
-
+    // 5) parse telegramId & days
+    const parsed = parseFromOrderDescription(desc);
     if (!parsed) {
-      console.log("⚠️ paid but cannot parse telegramId/days", { orderId, orderDescription, paymentId });
-      return NextResponse.json({ ok: true, warning: "cannot extract telegramId/days" });
+      // unlock supaya bisa retry setelah lo benerin format desc
+      await prisma.payment.update({
+        where: { paymentId },
+        data: { inviteSentAt: null },
+      });
+      return NextResponse.json({ ok: true, warning: "cannot parse order_description" });
     }
 
-    const telegramId = String(parsed.telegramId).trim();
-    const plan = parsed.plan;
+    const telegramId = parsed.telegramId;
     const days = parsed.days;
+    const plan = parsed.plan; // "vip"
 
     const now = new Date();
-    const maxFutureMs = 400 * 24 * 60 * 60 * 1000; // 400 hari guardrail
 
+    /**
+     * 6) Hitung endsAt dengan cara “extend” jika masih aktif.
+     * Ambil subscription active terakhir utk plan ini (kalau ada),
+     * kalau endsAt masih di masa depan -> extend dari endsAt,
+     * else -> mulai dari now.
+     */
     const lastActiveSub = await prisma.subscription.findFirst({
       where: { member: { telegramId }, status: "active", plan },
       orderBy: { endsAt: "desc" },
     });
 
-    const lastSubOk =
-      lastActiveSub?.endsAt &&
-      lastActiveSub.endsAt.getTime() > now.getTime() &&
-      lastActiveSub.endsAt.getTime() - now.getTime() < maxFutureMs;
-
-    const prevMember = await prisma.member.findUnique({ where: { telegramId } });
-    const memberExpiredOk =
-      prevMember?.expiredAt &&
-      prevMember.expiredAt.getTime() > now.getTime() &&
-      prevMember.expiredAt.getTime() - now.getTime() < maxFutureMs;
-
-    let baseTime = now;
-    let baseTimeSource: string = "now";
-
-    if (lastSubOk && lastActiveSub?.endsAt) {
-      baseTime = lastActiveSub.endsAt;
-      baseTimeSource = "subscription.endsAt";
-    } else if (memberExpiredOk && prevMember?.expiredAt) {
-      baseTime = prevMember.expiredAt;
-      baseTimeSource = "member.expiredAt";
-    } else {
-      baseTime = now;
-      baseTimeSource = lastActiveSub?.endsAt ? "now (guardrail:sub too-far)" : "now";
-    }
+    const baseTime =
+      lastActiveSub?.endsAt && lastActiveSub.endsAt.getTime() > now.getTime() ? lastActiveSub.endsAt : now;
 
     const endsAt = new Date(baseTime.getTime() + days * 24 * 60 * 60 * 1000);
 
-    console.log("🧠 RENEW BASE:", {
-      telegramId,
-      plan,
-      days,
-      baseTime: baseTime.toISOString(),
-      baseTimeSource,
-      computedEndsAt: endsAt.toISOString(),
-      lastActiveSubEndsAt: lastActiveSub?.endsAt?.toISOString?.() ?? null,
-      lastSubOk,
-      prevMemberExpiredAt: prevMember?.expiredAt?.toISOString?.() ?? null,
-      memberExpiredOk,
-    });
-
+    // 7) upsert member + upsert subscription active (1 record aktif utk plan ini)
     const member = await prisma.$transaction(async (tx) => {
       const m = await tx.member.upsert({
         where: { telegramId },
-        create: { telegramId, status: "ACTIVE", expiredAt: endsAt },
-        update: { status: "ACTIVE", expiredAt: endsAt },
+        create: { telegramId, expiredAt: endsAt, status: "ACTIVE" },
+        update: { expiredAt: endsAt, status: "ACTIVE" },
       });
 
       const active = await tx.subscription.findFirst({
@@ -297,20 +236,14 @@ export async function POST(req: Request) {
       return m;
     });
 
-    const memberCheck = await prisma.member.findUnique({ where: { telegramId } });
-    console.log("✅ NEON WRITE PROOF:", {
-      upsertMemberId: member.id,
-      telegramId,
-      memberCheckExists: !!memberCheck,
-      memberExpiredAt: memberCheck?.expiredAt?.toISOString?.(),
-    });
-
+    // 8) create invite + simpan ke member
     const inviteLink = await telegramCreateInviteLink();
     await prisma.member.update({
       where: { id: member.id },
       data: { inviteLink },
     });
 
+    // 9) send telegram message (HTML safe)
     const html =
       `✅ <b>Pembayaran berhasil!</b>\n\n` +
       `🎟️ VIP aktif <b>${escapeHtml(String(days))} hari</b>\n` +
@@ -320,11 +253,23 @@ export async function POST(req: Request) {
 
     await telegramSendMessageHTML(telegramId, html);
 
-    console.log("✅ ACTIVATED:", { telegramId, plan, days, endsAt: endsAt.toISOString(), paymentId });
-
+    console.log("✅ IPN OK", { paymentId, status, telegramId, days, ms: Date.now() - startedAt });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
-    console.log("❌ IPN ERROR:", e);
+    console.error("❌ IPN ERROR:", e?.message ?? e);
+
+    // Kalau error terjadi setelah claim lock, kita UNLOCK supaya bisa retry via IPN berikutnya
+    if (paymentIdForUnlock) {
+      try {
+        await prisma.payment.update({
+          where: { paymentId: paymentIdForUnlock },
+          data: { inviteSentAt: null },
+        });
+      } catch (unlockErr) {
+        console.error("❌ UNLOCK FAILED:", unlockErr);
+      }
+    }
+
     return NextResponse.json({ ok: false, error: String(e?.message ?? e) }, { status: 500 });
   }
 }

@@ -21,6 +21,63 @@ function escapeHtml(s: string) {
 }
 
 /**
+ * Potong string panjang biar log Vercel tetap enak dibaca
+ */
+function truncate(s: string, max = 1200) {
+  if (!s) return s;
+  return s.length > max ? s.slice(0, max) + `…(truncated ${s.length - max} chars)` : s;
+}
+
+/**
+ * Ambil only fields penting dari payload NOWPayments
+ * (biar log selalu jelas paymentId + amount + currency + status)
+ */
+function pickNowPaymentsSummary(body: any) {
+  const get = (k: string) => (body?.[k] !== undefined && body?.[k] !== null ? body[k] : undefined);
+
+  return {
+    payment_id: get("payment_id"),
+    payment_status: get("payment_status"),
+    order_id: get("order_id"),
+    order_description: get("order_description"),
+
+    // Amount & currency (yang sering dicari pas debugging)
+    price_amount: get("price_amount"),
+    price_currency: get("price_currency"),
+    pay_amount: get("pay_amount"),
+    pay_currency: get("pay_currency"),
+    actually_paid: get("actually_paid"),
+    actually_paid_at_fiat: get("actually_paid_at_fiat"),
+
+    // Fee/outcome (kadang ada)
+    fee: get("fee"),
+    outcome_amount: get("outcome_amount"),
+    outcome_currency: get("outcome_currency"),
+
+    // Invoice / tx details (kadang muncul)
+    invoice_id: get("invoice_id"),
+    pay_address: get("pay_address"),
+    payin_extra_id: get("payin_extra_id"),
+    payment_extra_ids: get("payment_extra_ids"),
+
+    // Timestamps (kalau ada)
+    created_at: get("created_at"),
+    updated_at: get("updated_at"),
+  };
+}
+
+/**
+ * Buat list key payload (biar lo tau NOWPayments ngirim apa aja)
+ */
+function listKeys(body: any) {
+  try {
+    return Object.keys(body || {}).sort();
+  } catch {
+    return [];
+  }
+}
+
+/**
  * NOWPayments signature:
  * - kalau NOWPAYMENTS_IPN_SECRET tidak diset -> skip verify (dev mode)
  * - kalau diset -> wajib cocok
@@ -31,10 +88,7 @@ function verifyNowPaymentsSigFromRaw(rawBody: string, sigHeader: string | null) 
 
   if (!sigHeader) return { ok: false as const, error: "Missing x-nowpayments-sig" };
 
-  const computed = crypto
-    .createHmac("sha512", secret)
-    .update(rawBody, "utf8")
-    .digest("hex");
+  const computed = crypto.createHmac("sha512", secret).update(rawBody, "utf8").digest("hex");
 
   const a = computed.trim().toLowerCase();
   const b = sigHeader.trim().toLowerCase();
@@ -84,7 +138,7 @@ async function telegramCreateInviteLink() {
   });
 
   const json = await res.json();
-  if (!json.ok) throw new Error(`Failed to create invite link: ${JSON.stringify(json)}`);
+  if (!json.ok) throw new Error(`Failed to create invite link: ${truncate(JSON.stringify(json), 1200)}`);
   return json.result.invite_link as string;
 }
 
@@ -104,7 +158,7 @@ async function telegramSendMessageHTML(telegramId: string, html: string) {
   });
 
   const json = await res.json();
-  if (!json.ok) throw new Error(`Telegram sendMessage failed: ${JSON.stringify(json)}`);
+  if (!json.ok) throw new Error(`Telegram sendMessage failed: ${truncate(JSON.stringify(json), 1200)}`);
 }
 
 /* =========================
@@ -113,6 +167,7 @@ async function telegramSendMessageHTML(telegramId: string, html: string) {
 
 export async function POST(req: Request) {
   const startedAt = Date.now();
+  const reqId = crypto.randomUUID(); // biar gampang trace 1 request end-to-end
   let paymentIdForUnlock: string | null = null;
 
   try {
@@ -120,9 +175,18 @@ export async function POST(req: Request) {
     const raw = await req.text();
     const sig = req.headers.get("x-nowpayments-sig");
 
+    // Log masuk IPN SEBELUM verify (tanpa bocorin raw full)
+    console.log("📩 IPN IN", {
+      reqId,
+      hasSig: !!sig,
+      rawBytes: raw ? Buffer.byteLength(raw, "utf8") : 0,
+      ct: req.headers.get("content-type"),
+      ua: req.headers.get("user-agent"),
+    });
+
     const verify = verifyNowPaymentsSigFromRaw(raw, sig);
     if (!verify.ok) {
-      console.log("❌ IPN signature invalid", { sigExists: !!sig });
+      console.log("❌ IPN signature invalid", { reqId, sigExists: !!sig, error: verify.error });
       return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
     }
 
@@ -131,17 +195,37 @@ export async function POST(req: Request) {
     try {
       body = raw ? JSON.parse(raw) : {};
     } catch {
+      console.log("❌ IPN invalid json", { reqId, rawPreview: truncate(raw, 800) });
       return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
     }
+
+    const summary = pickNowPaymentsSummary(body);
+    const keys = listKeys(body);
 
     const paymentId = String(body.payment_id || "");
     const status = String(body.payment_status || "unknown").toLowerCase();
     const desc = String(body.order_description || "");
 
     if (!paymentId) {
+      console.log("❌ IPN missing payment_id", { reqId, keys, summary });
       return NextResponse.json({ ok: false, error: "payment_id missing" }, { status: 400 });
     }
     paymentIdForUnlock = paymentId;
+
+    // ✅ INI YANG LO MAU: log detail payment langsung saat IPN masuk
+    console.log("🧾 IPN DETAILS", {
+      reqId,
+      paymentId,
+      status,
+      summary,
+      keys,
+    });
+
+    // (Opsional) kalau lo pengen bisa liat raw penuh saat debugging:
+    // Set env LOG_IPN_RAW=true di Vercel (sementara aja)
+    if (process.env.LOG_IPN_RAW === "true") {
+      console.log("🧾 IPN RAW (debug)", { reqId, paymentId, raw: truncate(raw, 3500) });
+    }
 
     // 3) simpan audit payment
     await prisma.payment.upsert({
@@ -153,7 +237,14 @@ export async function POST(req: Request) {
     // 4) paid status
     const paid = status === "confirmed" || status === "finished";
     if (!paid) {
-      // status lain: waiting / sending / partially_paid / failed / expired / refunded dll
+      // 🔥 penting: log juga saat belum paid (biar ga “kok ga keluar apa2”)
+      console.log("⏳ IPN NOT PAID (ignored)", {
+        reqId,
+        paymentId,
+        status,
+        summary,
+        ms: Date.now() - startedAt,
+      });
       return NextResponse.json({ ok: true, ignored: status });
     }
 
@@ -173,6 +264,7 @@ export async function POST(req: Request) {
     });
 
     if (claimed.count === 0) {
+      console.log("🔁 IPN already processed (invite lock exists)", { reqId, paymentId, status });
       return NextResponse.json({ ok: true, alreadyProcessed: true });
     }
 
@@ -184,6 +276,14 @@ export async function POST(req: Request) {
         where: { paymentId },
         data: { inviteSentAt: null },
       });
+
+      console.log("⚠️ IPN cannot parse order_description", {
+        reqId,
+        paymentId,
+        order_description: desc,
+        summary,
+      });
+
       return NextResponse.json({ ok: true, warning: "cannot parse order_description" });
     }
 
@@ -195,9 +295,6 @@ export async function POST(req: Request) {
 
     /**
      * 6) Hitung endsAt dengan cara “extend” jika masih aktif.
-     * Ambil subscription active terakhir utk plan ini (kalau ada),
-     * kalau endsAt masih di masa depan -> extend dari endsAt,
-     * else -> mulai dari now.
      */
     const lastActiveSub = await prisma.subscription.findFirst({
       where: { member: { telegramId }, status: "active", plan },
@@ -209,7 +306,7 @@ export async function POST(req: Request) {
 
     const endsAt = new Date(baseTime.getTime() + days * 24 * 60 * 60 * 1000);
 
-    // 7) upsert member + upsert subscription active (1 record aktif utk plan ini)
+    // 7) upsert member + upsert subscription active
     const member = await prisma.$transaction(async (tx) => {
       const m = await tx.member.upsert({
         where: { telegramId },
@@ -246,6 +343,7 @@ export async function POST(req: Request) {
     // 9) send telegram message (HTML safe)
     const html =
       `✅ <b>Pembayaran berhasil!</b>\n\n` +
+      `🧾 Payment ID: <code>${escapeHtml(String(paymentId))}</code>\n` +
       `🎟️ VIP aktif <b>${escapeHtml(String(days))} hari</b>\n` +
       `⏳ Sampai: <b>${escapeHtml(fmtDateJakarta(endsAt))}</b>\n\n` +
       `👉 Link join VIP Group (1x pakai):\n${escapeHtml(inviteLink)}\n\n` +
@@ -253,10 +351,25 @@ export async function POST(req: Request) {
 
     await telegramSendMessageHTML(telegramId, html);
 
-    console.log("✅ IPN OK", { paymentId, status, telegramId, days, ms: Date.now() - startedAt });
+    console.log("✅ IPN OK", {
+      reqId,
+      paymentId,
+      status,
+      telegramId,
+      days,
+      plan,
+      endsAt: endsAt.toISOString(),
+      ms: Date.now() - startedAt,
+      summary,
+    });
+
     return NextResponse.json({ ok: true });
   } catch (e: any) {
-    console.error("❌ IPN ERROR:", e?.message ?? e);
+    console.error("❌ IPN ERROR:", {
+      message: e?.message ?? String(e),
+      reqId,
+      paymentId: paymentIdForUnlock,
+    });
 
     // Kalau error terjadi setelah claim lock, kita UNLOCK supaya bisa retry via IPN berikutnya
     if (paymentIdForUnlock) {
@@ -265,8 +378,9 @@ export async function POST(req: Request) {
           where: { paymentId: paymentIdForUnlock },
           data: { inviteSentAt: null },
         });
+        console.log("🔓 UNLOCK OK", { reqId, paymentId: paymentIdForUnlock });
       } catch (unlockErr) {
-        console.error("❌ UNLOCK FAILED:", unlockErr);
+        console.error("❌ UNLOCK FAILED:", { reqId, paymentId: paymentIdForUnlock, unlockErr });
       }
     }
 

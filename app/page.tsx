@@ -5,24 +5,6 @@ const TG_BOT_URL = "https://t.me/koinity_bot";
 export default function HomePage() {
   return (
     <main style={styles.page}>
-      {/* simple responsive helpers */}
-      <style jsx global>{`
-        @media (max-width: 980px) {
-          .heroGrid {
-            grid-template-columns: 1fr !important;
-          }
-          .navLinks {
-            display: none !important;
-          }
-          .cards3 {
-            grid-template-columns: 1fr !important;
-          }
-          .pricing3 {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
-
       {/* Header */}
       <header style={styles.header}>
         <div style={styles.container}>
@@ -41,17 +23,11 @@ export default function HomePage() {
               </div>
             </div>
 
-            <nav className="navLinks" style={styles.nav}>
-              <a href="#welcome" style={styles.navLink}>
-                Tentang
-              </a>
-              <a href="#pricing" style={styles.navLink}>
-                Paket
-              </a>
-              <a href="#faq" style={styles.navLink}>
-                FAQ
-              </a>
-              {/* SUCCESS DIHILANGKAN SESUAI REQUEST */}
+            <nav style={styles.nav}>
+              <a href="#welcome" style={styles.navLink}>Tentang</a>
+              <a href="#pricing" style={styles.navLink}>Paket</a>
+              <a href="#faq" style={styles.navLink}>FAQ</a>
+              {/* Success dihapus */}
             </nav>
 
             <a href={TG_BOT_URL} style={styles.headerBtn}>
@@ -64,27 +40,26 @@ export default function HomePage() {
       {/* Hero */}
       <section style={styles.hero}>
         <div style={styles.container}>
-          <div className="heroGrid" style={styles.heroGrid}>
-            <div>
+          <div style={styles.heroWrap}>
+            {/* left */}
+            <div style={styles.heroLeft}>
               <div style={styles.pill}>⚡ Akses VIP via Telegram (Otomatis)</div>
 
               <h1 style={styles.h1}>
                 Masuk VIP Koinity, <br />
-                naik level di crypto <span style={styles.yellow}>tanpa spekulasi asal</span>.
+                naik level di crypto{" "}
+                <span style={styles.yellow}>tanpa spekulasi asal</span>.
               </h1>
 
               <p style={styles.lead}>
-                Koinity bukan untuk semua orang. Ini tempat buat kamu yang mau lebih
-                serius membangun posisi, punya sistem, dan lingkungan yang tepat.
+                Koinity bukan untuk semua orang. Ini tempat buat kamu yang mau
+                lebih serius membangun posisi, punya sistem, dan lingkungan yang
+                tepat.
               </p>
 
               <div style={styles.heroCtas}>
-                <a href="#pricing" style={styles.primaryBtn}>
-                  Lihat Paket
-                </a>
-                <a href={TG_BOT_URL} style={styles.secondaryBtn}>
-                  Buka koinity_bot
-                </a>
+                <a href="#pricing" style={styles.primaryBtn}>Lihat Paket</a>
+                <a href={TG_BOT_URL} style={styles.secondaryBtn}>Buka koinity_bot</a>
               </div>
 
               <div style={styles.trustRow}>
@@ -94,46 +69,48 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Hero Card */}
-            <div style={styles.heroCard}>
-              <div style={styles.heroCardTop}>
-                <div>
-                  <div style={styles.heroCardTitle}>Cara Join VIP</div>
-                  <div style={styles.heroCardDesc}>3 langkah simpel</div>
+            {/* right card */}
+            <div style={styles.heroRight}>
+              <div style={styles.heroCard}>
+                <div style={styles.heroCardTop}>
+                  <div>
+                    <div style={styles.heroCardTitle}>Cara Join VIP</div>
+                    <div style={styles.heroCardDesc}>3 langkah simpel</div>
+                  </div>
+                  <div style={styles.badgeGreen}>Live</div>
                 </div>
-                <div style={styles.badgeGreen}>Live</div>
-              </div>
 
-              <ol style={styles.steps}>
-                <li style={styles.step}>
-                  <div style={styles.stepNum}>1</div>
-                  <div>
-                    <div style={styles.stepTitle}>Pilih paket membership</div>
-                    <div style={styles.stepText}>1 bulan, 3 bulan, atau 1 tahun.</div>
-                  </div>
-                </li>
-                <li style={styles.step}>
-                  <div style={styles.stepNum}>2</div>
-                  <div>
-                    <div style={styles.stepTitle}>Selesaikan pembayaran</div>
-                    <div style={styles.stepText}>Diproses otomatis via NOWPayments.</div>
-                  </div>
-                </li>
-                <li style={styles.step}>
-                  <div style={styles.stepNum}>3</div>
-                  <div>
-                    <div style={styles.stepTitle}>Klik bot → dapat akses</div>
-                    <div style={styles.stepText}>Bot kirim akses VIP setelah status aktif.</div>
-                  </div>
-                </li>
-              </ol>
+                <ol style={styles.steps}>
+                  <li style={styles.step}>
+                    <div style={styles.stepNum}>1</div>
+                    <div>
+                      <div style={styles.stepTitle}>Pilih paket membership</div>
+                      <div style={styles.stepText}>1 bulan, 3 bulan, atau 1 tahun.</div>
+                    </div>
+                  </li>
+                  <li style={styles.step}>
+                    <div style={styles.stepNum}>2</div>
+                    <div>
+                      <div style={styles.stepTitle}>Selesaikan pembayaran</div>
+                      <div style={styles.stepText}>Diproses otomatis via NOWPayments.</div>
+                    </div>
+                  </li>
+                  <li style={styles.step}>
+                    <div style={styles.stepNum}>3</div>
+                    <div>
+                      <div style={styles.stepTitle}>Klik bot → dapat akses</div>
+                      <div style={styles.stepText}>Bot kirim akses VIP setelah status aktif.</div>
+                    </div>
+                  </li>
+                </ol>
 
-              <a href={TG_BOT_URL} style={styles.cardBtn}>
-                🚀 Masuk ke Bot Telegram VIP
-              </a>
+                <a href={TG_BOT_URL} style={styles.cardBtn}>
+                  🚀 Masuk ke Bot Telegram VIP
+                </a>
 
-              <div style={styles.miniNote}>
-                *Jika akses belum aktif, tunggu sebentar lalu coba lagi.
+                <div style={styles.miniNote}>
+                  *Jika akses belum aktif, tunggu sebentar lalu coba lagi.
+                </div>
               </div>
             </div>
           </div>
@@ -152,12 +129,14 @@ export default function HomePage() {
 
           <div style={styles.longCard}>
             <p style={styles.pStrong}>
-              <span style={styles.yellow}>Bukan untuk semua orang.</span> KOINITY dibuat bagi
-              mereka yang ingin serius membangun posisi, bukan sekadar ikut tren dan berharap keberuntungan.
+              <span style={styles.yellow}>Bukan untuk semua orang.</span> KOINITY dibuat
+              bagi mereka yang ingin serius membangun posisi, bukan sekadar ikut
+              tren dan berharap keberuntungan.
             </p>
 
             <p style={styles.p}>
-              Kalau kamu sudah cukup lama di crypto, mungkin kamu pernah ngerasa seperti ini 👇
+              Kalau kamu sudah cukup lama di crypto, mungkin kamu pernah ngerasa
+              seperti ini 👇
             </p>
 
             <ul style={styles.ul}>
@@ -169,16 +148,16 @@ export default function HomePage() {
             </ul>
 
             <p style={styles.p}>
-              Masalahnya sering kali bukan soal kepintaran, melainkan karena tidak punya sistem dan lingkungan yang tepat.
+              Masalahnya sering kali bukan soal kepintaran, melainkan karena tidak
+              punya sistem dan lingkungan yang tepat.
             </p>
 
             <p style={styles.p}>
-              Di sinilah KOINITY dibangun. Bukan untuk menjanjikan hasil instan, tapi untuk mengisi celah yang sering tidak disadari banyak trader.
+              Di sinilah KOINITY dibangun. Bukan untuk menjanjikan hasil instan,
+              tapi untuk mengisi celah yang sering tidak disadari banyak trader.
             </p>
 
-            <p style={styles.pStrong}>
-              Di KOINITY, kamu tidak sekadar dapat “sinyal”.
-            </p>
+            <p style={styles.pStrong}>Di KOINITY, kamu tidak sekadar dapat “sinyal”.</p>
 
             <p style={styles.p}>Kamu akan belajar:</p>
 
@@ -190,7 +169,8 @@ export default function HomePage() {
             </ul>
 
             <p style={styles.p}>
-              Semua dibahas bersama komunitas yang satu frekuensi, dengan pendekatan yang lebih tenang, terukur, dan bertanggung jawab.
+              Semua dibahas bersama komunitas yang satu frekuensi, dengan pendekatan yang
+              lebih tenang, terukur, dan bertanggung jawab.
             </p>
 
             <div style={styles.divider} />
@@ -226,7 +206,7 @@ export default function HomePage() {
             Semua pembayaran diproses otomatis via NOWPayments (Kripto).
           </p>
 
-          <div className="pricing3" style={styles.pricingGrid}>
+          <div style={styles.pricingWrap}>
             <div style={styles.priceCard}>
               <div style={styles.priceName}>✅ Paket 1 Bulan</div>
               <div style={styles.priceValue}>$12</div>
@@ -286,9 +266,7 @@ export default function HomePage() {
           </div>
 
           <div style={{ textAlign: "center", marginTop: 24 }}>
-            <a href={TG_BOT_URL} style={styles.greenBtnWide}>
-              🚀 Mulai dari Bot
-            </a>
+            <a href={TG_BOT_URL} style={styles.greenBtnWide}>🚀 Mulai dari Bot</a>
           </div>
         </div>
       </section>
@@ -320,255 +298,85 @@ export default function HomePage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page: {
-    background: "#0b0f14",
-    color: "#e5e7eb",
-    fontFamily:
-      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Arial',
-  },
+  page: { background: "#0b0f14", color: "#e5e7eb", fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial' },
   container: { width: "100%", maxWidth: 1080, margin: "0 auto", padding: "0 20px" },
-
   yellow: { color: "#facc15" },
 
-  header: {
-    position: "sticky",
-    top: 0,
-    zIndex: 20,
-    background: "rgba(11,15,20,0.78)",
-    backdropFilter: "blur(10px)",
-    borderBottom: "1px solid rgba(250,204,21,0.14)",
-  },
-  headerRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "14px 0",
-    gap: 16,
-  },
+  header: { position: "sticky", top: 0, zIndex: 20, background: "rgba(11,15,20,0.78)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(250,204,21,0.14)" },
+  headerRow: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", gap: 16, flexWrap: "wrap" },
+
   brand: { display: "flex", alignItems: "center", gap: 12 },
-  brandIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    background: "rgba(250,204,21,0.10)",
-    border: "1px solid rgba(250,204,21,0.22)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
+  brandIconWrap: { width: 42, height: 42, borderRadius: 14, background: "rgba(250,204,21,0.10)", border: "1px solid rgba(250,204,21,0.22)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" },
   brandLogo: { width: 30, height: 30, objectFit: "contain" },
   brandName: { fontWeight: 950, lineHeight: 1.1, color: "#facc15" },
   brandTag: { fontSize: 12, color: "#94a3b8" },
 
-  nav: { display: "flex", gap: 16, alignItems: "center" },
+  nav: { display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" },
   navLink: { color: "#e5e7eb", textDecoration: "none", fontSize: 14, opacity: 0.9 },
 
-  headerBtn: {
-    background: "#16a34a",
-    color: "#fff",
-    textDecoration: "none",
-    padding: "10px 14px",
-    borderRadius: 12,
-    fontWeight: 900,
-    fontSize: 14,
-    boxShadow: "0 10px 20px rgba(22,163,74,0.22)",
-    whiteSpace: "nowrap",
-  },
+  headerBtn: { background: "#16a34a", color: "#fff", textDecoration: "none", padding: "10px 14px", borderRadius: 12, fontWeight: 900, fontSize: 14, boxShadow: "0 10px 20px rgba(22,163,74,0.22)", whiteSpace: "nowrap" },
 
-  hero: {
-    background:
-      "radial-gradient(900px 420px at 18% 10%, rgba(250,204,21,0.18), transparent 60%), radial-gradient(900px 420px at 84% 0%, rgba(34,197,94,0.10), transparent 60%), #0b0f14",
-    padding: "58px 0 38px",
-  },
-  heroGrid: {
-    display: "grid",
-    gridTemplateColumns: "1.2fr 0.95fr",
-    gap: 28,
-    alignItems: "start",
-  },
-  pill: {
-    display: "inline-block",
-    background: "rgba(250,204,21,0.14)",
-    color: "#facc15",
-    padding: "8px 12px",
-    borderRadius: 999,
-    fontWeight: 900,
-    fontSize: 13,
-    marginBottom: 14,
-    border: "1px solid rgba(250,204,21,0.22)",
-  },
+  hero: { background: "radial-gradient(900px 420px at 18% 10%, rgba(250,204,21,0.18), transparent 60%), radial-gradient(900px 420px at 84% 0%, rgba(34,197,94,0.10), transparent 60%), #0b0f14", padding: "58px 0 38px" },
+  heroWrap: { display: "flex", gap: 28, alignItems: "stretch", justifyContent: "space-between", flexWrap: "wrap" },
+  heroLeft: { flex: "1 1 520px", minWidth: 280 },
+  heroRight: { flex: "1 1 360px", minWidth: 280 },
+
+  pill: { display: "inline-block", background: "rgba(250,204,21,0.14)", color: "#facc15", padding: "8px 12px", borderRadius: 999, fontWeight: 900, fontSize: 13, marginBottom: 14, border: "1px solid rgba(250,204,21,0.22)" },
   h1: { fontSize: 44, lineHeight: 1.05, fontWeight: 950, margin: "0 0 14px", color: "#f8fafc" },
   lead: { color: "#cbd5e1", fontSize: 16, lineHeight: 1.7, margin: "0 0 18px" },
 
   heroCtas: { display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18 },
-  primaryBtn: {
-    background: "#facc15",
-    color: "#0b0f14",
-    textDecoration: "none",
-    padding: "12px 16px",
-    borderRadius: 14,
-    fontWeight: 950,
-  },
-  secondaryBtn: {
-    background: "rgba(255,255,255,0.04)",
-    color: "#f8fafc",
-    textDecoration: "none",
-    padding: "12px 16px",
-    borderRadius: 14,
-    border: "1px solid rgba(250,204,21,0.22)",
-    fontWeight: 900,
-  },
+  primaryBtn: { background: "#facc15", color: "#0b0f14", textDecoration: "none", padding: "12px 16px", borderRadius: 14, fontWeight: 950 },
+  secondaryBtn: { background: "rgba(255,255,255,0.04)", color: "#f8fafc", textDecoration: "none", padding: "12px 16px", borderRadius: 14, border: "1px solid rgba(250,204,21,0.22)", fontWeight: 900 },
 
   trustRow: { display: "flex", gap: 14, flexWrap: "wrap", color: "#94a3b8", fontSize: 13 },
-  trustItem: {
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(250,204,21,0.12)",
-    padding: "8px 10px",
-    borderRadius: 12,
-  },
+  trustItem: { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(250,204,21,0.12)", padding: "8px 10px", borderRadius: 12 },
 
-  heroCard: {
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(250,204,21,0.16)",
-    borderRadius: 22,
-    padding: 18,
-    boxShadow: "0 12px 30px rgba(0,0,0,0.35)",
-  },
+  heroCard: { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(250,204,21,0.16)", borderRadius: 22, padding: 18, boxShadow: "0 12px 30px rgba(0,0,0,0.35)" },
   heroCardTop: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
   heroCardTitle: { fontWeight: 950, color: "#f8fafc" },
   heroCardDesc: { fontSize: 12, color: "#94a3b8", marginTop: 2 },
-  badgeGreen: {
-    background: "#16a34a",
-    color: "#fff",
-    padding: "6px 10px",
-    borderRadius: 999,
-    fontWeight: 950,
-    fontSize: 12,
-  },
+  badgeGreen: { background: "#16a34a", color: "#fff", padding: "6px 10px", borderRadius: 999, fontWeight: 950, fontSize: 12 },
 
   steps: { listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 12 },
   step: { display: "flex", gap: 12, alignItems: "flex-start" },
-  stepNum: {
-    width: 28,
-    height: 28,
-    borderRadius: 10,
-    background: "#facc15",
-    color: "#0b0f14",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: 950,
-    flex: "0 0 auto",
-  },
+  stepNum: { width: 28, height: 28, borderRadius: 10, background: "#facc15", color: "#0b0f14", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 950, flex: "0 0 auto" },
   stepTitle: { fontWeight: 950, marginBottom: 2, color: "#f8fafc" },
   stepText: { fontSize: 13, color: "#94a3b8", lineHeight: 1.5 },
 
-  cardBtn: {
-    marginTop: 16,
-    display: "block",
-    textAlign: "center",
-    background: "#16a34a",
-    color: "#fff",
-    textDecoration: "none",
-    padding: "12px 14px",
-    borderRadius: 14,
-    fontWeight: 950,
-  },
+  cardBtn: { marginTop: 16, display: "block", textAlign: "center", background: "#16a34a", color: "#fff", textDecoration: "none", padding: "12px 14px", borderRadius: 14, fontWeight: 950 },
   miniNote: { marginTop: 10, fontSize: 12, color: "#94a3b8", textAlign: "center" },
   miniNote2: { marginTop: 8, fontSize: 12, color: "#94a3b8" },
 
   section: { padding: "54px 0" },
-  sectionAlt: {
-    padding: "54px 0",
-    background: "rgba(255,255,255,0.03)",
-    borderTop: "1px solid rgba(250,204,21,0.12)",
-    borderBottom: "1px solid rgba(250,204,21,0.12)",
-  },
+  sectionAlt: { padding: "54px 0", background: "rgba(255,255,255,0.03)", borderTop: "1px solid rgba(250,204,21,0.12)", borderBottom: "1px solid rgba(250,204,21,0.12)" },
   sectionTitleWrap: { marginBottom: 16 },
 
   h2: { fontSize: 30, fontWeight: 950, margin: "0 0 10px", color: "#facc15" },
   sectionLead: { margin: "0 0 22px", color: "#cbd5e1", lineHeight: 1.7 },
 
-  longCard: {
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(250,204,21,0.16)",
-    borderRadius: 18,
-    padding: 18,
-    boxShadow: "0 12px 26px rgba(0,0,0,0.35)",
-  },
+  longCard: { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(250,204,21,0.16)", borderRadius: 18, padding: 18, boxShadow: "0 12px 26px rgba(0,0,0,0.35)" },
   p: { color: "#e5e7eb", lineHeight: 1.9, margin: "10px 0" },
   pStrong: { color: "#f8fafc", lineHeight: 1.9, margin: "10px 0", fontWeight: 800 },
   ul: { margin: "10px 0 10px 18px", padding: 0, color: "#e5e7eb", lineHeight: 1.9 },
   li: { margin: "6px 0" },
   divider: { height: 1, background: "rgba(250,204,21,0.14)", margin: "16px 0" },
 
-  greenBtnWide: {
-    display: "inline-block",
-    background: "#16a34a",
-    color: "#fff",
-    textDecoration: "none",
-    padding: "12px 18px",
-    borderRadius: 14,
-    fontWeight: 950,
-  },
+  greenBtnWide: { display: "inline-block", background: "#16a34a", color: "#fff", textDecoration: "none", padding: "12px 18px", borderRadius: 14, fontWeight: 950 },
 
-  pricingGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginTop: 10 },
-  priceCard: {
-    background: "rgba(0,0,0,0.25)",
-    border: "1px solid rgba(250,204,21,0.16)",
-    borderRadius: 18,
-    padding: 18,
-  },
-  priceCardFeatured: {
-    border: "1px solid rgba(22,163,74,0.40)",
-    boxShadow: "0 16px 34px rgba(22,163,74,0.12)",
-  },
-  featuredPill: {
-    display: "inline-block",
-    background: "rgba(22,163,74,0.14)",
-    color: "#86efac",
-    padding: "6px 10px",
-    borderRadius: 999,
-    fontWeight: 950,
-    fontSize: 12,
-    marginBottom: 10,
-    border: "1px solid rgba(22,163,74,0.25)",
-  },
-  featuredPillGold: {
-    display: "inline-block",
-    background: "rgba(250,204,21,0.14)",
-    color: "#facc15",
-    padding: "6px 10px",
-    borderRadius: 999,
-    fontWeight: 950,
-    fontSize: 12,
-    marginBottom: 10,
-    border: "1px solid rgba(250,204,21,0.25)",
-  },
+  pricingWrap: { display: "flex", gap: 14, flexWrap: "wrap", alignItems: "stretch" },
+  priceCard: { flex: "1 1 280px", background: "rgba(0,0,0,0.25)", border: "1px solid rgba(250,204,21,0.16)", borderRadius: 18, padding: 18, minWidth: 260 },
+  priceCardFeatured: { border: "1px solid rgba(22,163,74,0.40)", boxShadow: "0 16px 34px rgba(22,163,74,0.12)" },
+
+  featuredPill: { display: "inline-block", background: "rgba(22,163,74,0.14)", color: "#86efac", padding: "6px 10px", borderRadius: 999, fontWeight: 950, fontSize: 12, marginBottom: 10, border: "1px solid rgba(22,163,74,0.25)" },
+  featuredPillGold: { display: "inline-block", background: "rgba(250,204,21,0.14)", color: "#facc15", padding: "6px 10px", borderRadius: 999, fontWeight: 950, fontSize: 12, marginBottom: 10, border: "1px solid rgba(250,204,21,0.25)" },
+
   priceName: { fontWeight: 950, marginBottom: 6, color: "#f8fafc" },
   priceValue: { fontSize: 30, fontWeight: 950, marginBottom: 6, color: "#facc15" },
   priceDesc: { color: "#cbd5e1", lineHeight: 1.6, fontSize: 14, marginBottom: 12 },
-  priceBtnPrimary: {
-    display: "block",
-    textAlign: "center",
-    textDecoration: "none",
-    padding: "11px 12px",
-    borderRadius: 14,
-    fontWeight: 950,
-    color: "#fff",
-    background: "#16a34a",
-  },
+  priceBtnPrimary: { display: "block", textAlign: "center", textDecoration: "none", padding: "11px 12px", borderRadius: 14, fontWeight: 950, color: "#fff", background: "#16a34a" },
 
-  noteBox: {
-    marginTop: 18,
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(250,204,21,0.12)",
-    borderRadius: 16,
-    padding: 14,
-    color: "#cbd5e1",
-    lineHeight: 1.7,
-  },
+  noteBox: { marginTop: 18, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(250,204,21,0.12)", borderRadius: 16, padding: 14, color: "#cbd5e1", lineHeight: 1.7 },
 
   faqGrid: { display: "grid", gap: 12, marginTop: 10 },
   faqItem: { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(250,204,21,0.14)", borderRadius: 16, padding: 14 },
@@ -579,7 +387,7 @@ const styles: Record<string, React.CSSProperties> = {
   footerRow: { display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" },
   footerBrand: { fontWeight: 950, color: "#facc15" },
   footerText: { marginTop: 8, color: "#94a3b8", maxWidth: 520, lineHeight: 1.7, fontSize: 14 },
-  footerLinks: { display: "flex", gap: 14, alignItems: "center" },
+  footerLinks: { display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" },
   footerLink: { color: "#e5e7eb", textDecoration: "none", fontWeight: 800, fontSize: 14, opacity: 0.9 },
   footerBottom: { marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(148,163,184,0.18)", color: "#94a3b8", fontSize: 12 },
 };

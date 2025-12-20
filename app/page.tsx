@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export default function HomePage() {
+export default function Page() {
   return (
     <main className="min-h-screen bg-white text-neutral-900">
       {/* Top bar */}
@@ -12,7 +12,9 @@ export default function HomePage() {
             </div>
             <div className="leading-tight">
               <div className="text-sm font-extrabold tracking-tight">Koinity</div>
-              <div className="text-[11px] text-neutral-500">VIP access & membership</div>
+              <div className="text-[11px] text-neutral-500">
+                VIP access & membership
+              </div>
             </div>
           </Link>
 
@@ -36,6 +38,10 @@ export default function HomePage() {
               FAQ
             </a>
 
+            {/* NOTE:
+               Kalau lo belum punya route /pricing, tombol ini akan 404.
+               Kalau belum ada, ganti href="/pricing" jadi href="#how" atau bikin page /pricing nanti.
+            */}
             <Link
               href="/pricing"
               className="inline-flex items-center justify-center rounded-full border bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-neutral-50"
@@ -185,8 +191,8 @@ export default function HomePage() {
             Kenapa Koinity?
           </h2>
           <p className="mt-2 max-w-2xl text-neutral-600">
-            Dibuat biar proses membership simpel: jelas langkahnya, rapih tampilannya,
-            dan user gak bingung habis bayar.
+            Dibuat biar proses membership simpel: jelas langkahnya, rapih
+            tampilannya, dan user gak bingung habis bayar.
           </p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -222,18 +228,12 @@ export default function HomePage() {
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {[
-              {
-                t: "1) Bayar",
-                d: "Selesaikan pembayaran sampai status sukses.",
-              },
+              { t: "1) Bayar", d: "Selesaikan pembayaran sampai status sukses." },
               {
                 t: "2) Konfirmasi",
                 d: "Sistem memverifikasi transaksi dan mengaktifkan membership.",
               },
-              {
-                t: "3) Lanjut",
-                d: "Kamu diarahkan kembali untuk langkah masuk VIP.",
-              },
+              { t: "3) Lanjut", d: "Kamu diarahkan kembali untuk langkah masuk VIP." },
             ].map((x) => (
               <div key={x.t} className="rounded-3xl border bg-white p-6 shadow-sm">
                 <div className="text-sm font-bold">{x.t}</div>

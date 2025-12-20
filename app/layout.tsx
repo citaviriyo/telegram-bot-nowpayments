@@ -2,10 +2,17 @@
 import "./globals.css";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "KOINITY — Official Membership Access",
-  description: "Official landing page for KOINITY membership access via Telegram bot.",
+export const metadata = {
+  title: "Koinity",
+  description: "VIP access & membership",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/site.webmanifest",
 };
+
 
 export default function RootLayout({
   children,

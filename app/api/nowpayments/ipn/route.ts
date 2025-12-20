@@ -24,24 +24,23 @@ function maskDbUrl(url?: string | null) {
   }
 }
 
-function verifyNowPaymentsSigFromJson(body: any, sigHeader: string | null) {
+function verifyNowPaymentsSigFromRaw(rawBody: string, sigHeader: string | null) {
   const secret = process.env.NOWPAYMENTS_IPN_SECRET;
-  if (!secret) return { ok: true, skipped: true };
-  if (!sigHeader) return { ok: false, error: "Missing x-nowpayments-sig" };
+  if (!secret) return { ok: true, skipped: true as const };
 
-  const sorted = Object.keys(body || {})
-    .sort()
-    .reduce((acc: any, k) => {
-      acc[k] = body[k];
-      return acc;
-    }, {});
+  if (!sigHeader) return { ok: false as const, error: "Missing x-nowpayments-sig" };
 
-  const h = crypto
+  const computed = crypto
     .createHmac("sha512", secret)
-    .update(JSON.stringify(sorted))
+    .update(rawBody, "utf8")
     .digest("hex");
 
-  return h === sigHeader ? { ok: true } : { ok: false, error: "Invalid signature" };
+  const a = computed.trim().toLowerCase();
+  const b = sigHeader.trim().toLowerCase();
+
+  return a === b
+    ? { ok: true as const }
+    : { ok: false as const, error: "Invalid signature", computedPrefix: a.slice(0, 12) + "…" };
 }
 
 function parseOrderId(orderId: string): { telegramId: string; plan: string; days: number } | null {
@@ -135,7 +134,31 @@ async function telegramSendMessageHTML(telegramId: string, html: string) {
 
 export async function POST(req: Request) {
   try {
+    // 1) RAW body untuk signature verification (wajib)
     const raw = await req.text();
+
+    // 2) Verify signature NOWPayments (kalau secret diset)
+    const sig = req.headers.get("x-nowpayments-sig");
+    const v = verifyNowPaymentsSigFromRaw(raw, sig);
+
+    if (!v.ok) {
+      console.log("========================================");
+      console.log("❌ NOWPAYMENTS IPN SIGNATURE FAIL");
+      console.log("🕒 time:", new Date().toISOString());
+      console.log("🌐 url:", req.url);
+      console.log("🔐 hasSig:", !!sig, "sigPrefix:", sig ? sig.slice(0, 12) + "…" : "(none)");
+      console.log("🧪 verify:", v);
+      console.log("🧬 DB TARGET:", {
+        DATABASE_URL: maskDbUrl(process.env.DATABASE_URL),
+        DIRECT_URL: maskDbUrl((process.env as any).DIRECT_URL),
+        NODE_ENV: process.env.NODE_ENV,
+      });
+      console.log("📨 RAW (first 500):", raw.slice(0, 500));
+      console.log("========================================");
+      return NextResponse.json({ ok: false, error: "signature verification failed" }, { status: 401 });
+    }
+
+    // 3) Parse JSON setelah signature lolos
     let body: any = {};
     try {
       body = raw ? JSON.parse(raw) : {};
@@ -143,23 +166,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
     }
 
-    const sig = req.headers.get("x-nowpayments-sig");
-    const v = verifyNowPaymentsSigFromJson(body, sig);
-    if (!v.ok) {
-      console.log("❌ IPN SIG FAIL:", v);
-      return NextResponse.json({ ok: false, error: "signature verification failed" }, { status: 401 });
-    }
-
     console.log("========================================");
     console.log("✅ NOWPAYMENTS IPN HIT");
     console.log("🕒 time:", new Date().toISOString());
     console.log("🌐 url:", req.url);
+    console.log("🧪 sigCheck:", v);
     console.log("🧬 DB TARGET:", {
       DATABASE_URL: maskDbUrl(process.env.DATABASE_URL),
       DIRECT_URL: maskDbUrl((process.env as any).DIRECT_URL),
       NODE_ENV: process.env.NODE_ENV,
     });
-    console.log("📨 IPN RAW JSON:");
+    console.log("📨 IPN JSON:");
     console.log(JSON.stringify(body, null, 2));
     console.log("========================================");
 
@@ -174,19 +191,23 @@ export async function POST(req: Request) {
 
     const existing = await prisma.payment.findUnique({ where: { paymentId } });
 
+    // simpan semua status selalu (audit trail)
     await prisma.payment.upsert({
       where: { paymentId },
       create: { paymentId, status: incomingStatus, raw: body },
       update: { status: incomingStatus, raw: body },
     });
 
-    if (incomingStatus !== "finished") {
+    // ✅ proses paid saat confirmed ATAU finished
+    const paid = incomingStatus === "confirmed" || incomingStatus === "finished";
+    if (!paid) {
       console.log("ℹ️ IPN ignored status:", incomingStatus, "paymentId:", paymentId);
       return NextResponse.json({ ok: true, ignored: incomingStatus });
     }
 
-    if (existing?.status === "finished") {
-      console.log("ℹ️ alreadyProcessed finished:", paymentId);
+    // idempotent: kalau sudah pernah paid, stop
+    if (existing?.status === "confirmed" || existing?.status === "finished") {
+      console.log("ℹ️ alreadyProcessed paid:", paymentId, "prevStatus:", existing.status);
       return NextResponse.json({ ok: true, alreadyProcessed: true });
     }
 
@@ -194,7 +215,7 @@ export async function POST(req: Request) {
     if (!parsed) parsed = parseFromOrderDescription(orderDescription);
 
     if (!parsed) {
-      console.log("⚠️ finished but cannot parse telegramId/days", { orderId, orderDescription, paymentId });
+      console.log("⚠️ paid but cannot parse telegramId/days", { orderId, orderDescription, paymentId });
       return NextResponse.json({ ok: true, warning: "cannot extract telegramId/days" });
     }
 
@@ -203,10 +224,8 @@ export async function POST(req: Request) {
     const days = parsed.days;
 
     const now = new Date();
-
     const maxFutureMs = 400 * 24 * 60 * 60 * 1000; // 400 hari guardrail
 
-    // source of truth: last active sub, TAPI harus masuk akal
     const lastActiveSub = await prisma.subscription.findFirst({
       where: { member: { telegramId }, status: "active", plan },
       orderBy: { endsAt: "desc" },
@@ -233,7 +252,6 @@ export async function POST(req: Request) {
       baseTime = prevMember.expiredAt;
       baseTimeSource = "member.expiredAt";
     } else {
-      // kalau data lama corrupt, kita mulai dari sekarang
       baseTime = now;
       baseTimeSource = lastActiveSub?.endsAt ? "now (guardrail:sub too-far)" : "now";
     }

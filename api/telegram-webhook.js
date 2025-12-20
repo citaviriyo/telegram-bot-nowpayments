@@ -1,7 +1,30 @@
 // api/telegram-webhook.js
 const axios = require("axios");
 
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
+// ✅ Pakai URL IPN yang PASTI valid (tanpa tergantung env yang kadang kosong/typo)
+const IPN_URL_FALLBACK = "https://www.koinity.online/api/nowpayments/ipn";
+
+// helper kecil buat rapihin string env (hapus spasi/newline)
+function cleanUrl(u) {
+  return String(u || "").trim();
+}
+
+function isValidHttpUrl(u) {
+  try {
+    const x = new URL(u);
+    return x.protocol === "https:" || x.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 async function createInvoice(amountUsd, description) {
+  const ipnUrlEnv = cleanUrl(process.env.NOWPAYMENTS_IPN_URL);
+  const ipnUrl = isValidHttpUrl(ipnUrlEnv) ? ipnUrlEnv : IPN_URL_FALLBACK;
+
   const res = await axios.post(
     "https://api.nowpayments.io/v1/invoice",
     {
@@ -9,9 +32,9 @@ async function createInvoice(amountUsd, description) {
       price_currency: "usd",
       pay_currency: "usdtbsc",
       order_description: description,
-      success_url: "https://koinity.online/success.html",
-      cancel_url: "https://koinity.online/cancel.html",
-      ipn_callback_url: process.env.NOWPAYMENTS_IPN_URL
+      success_url: "https://www.koinity.online/success.html",
+      cancel_url: "https://www.koinity.online/cancel.html",
+      ipn_callback_url: ipnUrl
     },
     {
       headers: {
@@ -23,9 +46,6 @@ async function createInvoice(amountUsd, description) {
 
   return res.data.invoice_url;
 }
-
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 /**
  * Vercel Node.js Serverless Function
@@ -148,9 +168,12 @@ bukan spekulasi asal.
               chat_id: chatId,
               text:
                 "*Daftar Paket Membership KOINITY*\n\n" +
-                "✅ *Paket 1 Bulan*\n   Harga: *$12*\n\n" +
-                "✅ *Paket 3 Bulan*\n   Harga: *$30* (Lebih Hemat ✅)\n\n" +
-                "✅ *Paket 1 Tahun*\n   Harga: *$50* (Paling Murah 🔥)\n\n" +
+                "✅ *Paket 1 Bulan*\n" +
+                "   Harga: *$12*\n\n" +
+                "✅ *Paket 3 Bulan*\n" +
+                "   Harga: *$30* (Lebih Hemat ✅)\n\n" +
+                "✅ *Paket 1 Tahun*\n" +
+                "   Harga: *$50* (Paling Murah 🔥)\n\n" +
                 "Semua pembayaran diproses otomatis via *NOWPayments (Kripto)*",
               parse_mode: "Markdown",
               reply_markup: {
@@ -183,16 +206,23 @@ bukan spekulasi asal.
           } else if (data === "menu_admin") {
             await axios.post(`${TELEGRAM_API}/sendMessage`, {
               chat_id: chatId,
-              text: "👋 Untuk bantuan langsung, silakan hubungi admin:\n\n@koinity_admin"
+              text:
+                "👋 Untuk bantuan langsung, silakan hubungi admin:\n\n" +
+                "@koinity_admin"
             });
 
           } else if (data === "pay_1bulan") {
-            const invoiceUrl = await createInvoice(12, `KOINITY|${chatId}|1bulan`);
+            const description = `KOINITY|${chatId}|1bulan`;
+            const invoiceUrl = await createInvoice(12, description);
+
             await axios.post(`${TELEGRAM_API}/sendMessage`, {
               chat_id: chatId,
               text:
                 "✅ *Paket 1 Bulan Dipilih*\n\n" +
                 "💰 Harga: *$12*\n\n" +
+                "💱 Metode bayar: *USDT jaringan BSC (BEP-20)*\n" +
+                "⚠️ Kirim sesuai jumlah yang tertera di halaman pembayaran (termasuk angka di belakang koma).\n" +
+                "⚠️ Biaya network dari exchange ditanggung pengirim.\n\n" +
                 "Klik tombol di bawah ini untuk melakukan pembayaran 👇",
               parse_mode: "Markdown",
               reply_markup: {
@@ -204,12 +234,17 @@ bukan spekulasi asal.
             });
 
           } else if (data === "pay_3bulan") {
-            const invoiceUrl = await createInvoice(30, `KOINITY|${chatId}|3bulan`);
+            const description = `KOINITY|${chatId}|3bulan`;
+            const invoiceUrl = await createInvoice(30, description);
+
             await axios.post(`${TELEGRAM_API}/sendMessage`, {
               chat_id: chatId,
               text:
                 "✅ *Paket 3 Bulan Dipilih*\n\n" +
                 "💰 Harga: *$30* (Lebih Hemat ✅)\n\n" +
+                "💱 Metode bayar: *USDT jaringan BSC (BEP-20)*\n" +
+                "⚠️ Kirim sesuai jumlah yang tertera di halaman pembayaran (termasuk angka di belakang koma).\n" +
+                "⚠️ Biaya network dari exchange ditanggung pengirim.\n\n" +
                 "Klik tombol di bawah ini untuk melakukan pembayaran 👇",
               parse_mode: "Markdown",
               reply_markup: {
@@ -221,12 +256,17 @@ bukan spekulasi asal.
             });
 
           } else if (data === "pay_1tahun") {
-            const invoiceUrl = await createInvoice(50, `KOINITY|${chatId}|1tahun`);
+            const description = `KOINITY|${chatId}|1tahun`;
+            const invoiceUrl = await createInvoice(50, description);
+
             await axios.post(`${TELEGRAM_API}/sendMessage`, {
               chat_id: chatId,
               text:
                 "✅ *Paket 1 Tahun Dipilih*\n\n" +
                 "💰 Harga: *$50* (Paling Murah per bulan 🔥)\n\n" +
+                "💱 Metode bayar: *USDT jaringan BSC (BEP-20)*\n" +
+                "⚠️ Kirim sesuai jumlah yang tertera di halaman pembayaran (termasuk angka di belakang koma).\n" +
+                "⚠️ Biaya network dari exchange ditanggung pengirim.\n\n" +
                 "Klik tombol di bawah ini untuk melakukan pembayaran 👇",
               parse_mode: "Markdown",
               reply_markup: {
@@ -242,13 +282,17 @@ bukan spekulasi asal.
               chat_id: chatId,
               text: "🔙 Kembali ke menu utama. Ketik /start"
             });
+          } else {
+            await axios.post(`${TELEGRAM_API}/sendMessage`, {
+              chat_id: chatId,
+              text: `Kamu pilih: ${data}`
+            });
           }
         } catch (e) {
           console.error("CALLBACK ASYNC ERROR:", e.response?.data || e.message || e);
         }
       })();
 
-      // ⛔ PENTING: JANGAN NUNGGU ASYNC
       return res.status(200).json({ ok: true });
     }
 

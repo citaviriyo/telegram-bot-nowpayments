@@ -59,6 +59,18 @@ async function tgKick(groupId: string, userId: number) {
   });
 }
 
+async function tgGetChatMember(groupId: string, userId: number) {
+  const data = await tgPost("getChatMember", {
+    chat_id: Number(groupId),
+    user_id: Number(userId),
+  });
+  return data?.result as { status?: string } | null;
+}
+
+function isAdminOrOwner(status?: string) {
+  return status === "creator" || status === "administrator";
+}
+
 /**
  * Cron runner
  * @param {object} opts
@@ -80,6 +92,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
     warnH1: 0,
     expiredFound: 0,
     kicked: 0,
+    skippedAdminOwner: 0,
     dryRun,
     errors: [] as Array<{ subId: string; telegramId?: string; step: string; error: string }>,
   };
@@ -217,6 +230,47 @@ export async function runCheckExpired(opts: RunOpts = {}) {
 
       console.log("🟥 CRON EXPIRED", { subId: s.id, telegramId, endsAt: s.endsAt?.toISOString?.(), dryRun });
 
+      // --- Safety: jangan kick admin/owner grup ---
+      let roleStatus: string | undefined;
+      let roleCheckOk = false;
+
+      await safeStep(s.id, telegramId, "ROLE_CHECK", async () => {
+        const cm = await tgGetChatMember(String(VIP_GROUP_ID), chatId);
+        roleStatus = cm?.status;
+        roleCheckOk = true;
+      });
+
+      // fail-safe: kalau gak bisa cek role, jangan kick
+      if (!roleCheckOk) {
+        console.log("🟪 SKIP (ROLE_CHECK_FAILED) - fail-safe no kick", { subId: s.id, telegramId, chatId });
+
+        if (!dryRun || writeDb) {
+          await safeStep(s.id, telegramId, "ROLE_CHECK_FAILED_DB", async () => {
+            await prisma.subscription.update({
+              where: { id: s.id },
+              data: { status: "expired", lastCheckedAt: now },
+            });
+          });
+        }
+        return;
+      }
+
+      if (isAdminOrOwner(roleStatus)) {
+        stats.skippedAdminOwner++;
+        console.log("🟩 SKIP (ADMIN/OWNER)", { subId: s.id, telegramId, chatId, roleStatus });
+
+        if (!dryRun || writeDb) {
+          await safeStep(s.id, telegramId, "ADMIN_DB_EXPIRE_SUB", async () => {
+            await prisma.subscription.update({
+              where: { id: s.id },
+              data: { status: "expired", lastCheckedAt: now },
+            });
+          });
+        }
+        return;
+      }
+
+      // --- Normal member: kick + message + update DB ---
       if (dryRun) {
         console.log("🟥 DRY RUN aktif: skip KICK + sendMessage expired", { subId: s.id, telegramId });
       } else {

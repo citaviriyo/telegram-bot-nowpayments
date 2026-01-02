@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
+import { PrismaClient } from "@prisma/client";
 
 export const runtime = "nodejs";
+
+/** Prisma (safe for dev hot-reload) */
+declare global {
+  // eslint-disable-next-line no-var
+  var prisma: PrismaClient | undefined;
+}
+const prisma = global.prisma ?? new PrismaClient();
+if (process.env.NODE_ENV !== "production") global.prisma = prisma;
 
 /** Axios instance biar stabil + timeout */
 const http = axios.create({
@@ -72,6 +81,25 @@ async function readUpdate(req: Request) {
   return text ? JSON.parse(text) : {};
 }
 
+/** Format tanggal WIB lengkap (dengan tanggal, bulan, tahun, jam-menit) */
+function fmtJakartaFull(d: Date) {
+  try {
+    const s = new Intl.DateTimeFormat("id-ID", {
+      timeZone: "Asia/Jakarta",
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(d);
+    return `${s} WIB`;
+  } catch {
+    // fallback aman
+    return `${d.toISOString()} (UTC)`;
+  }
+}
+
 export async function GET() {
   return NextResponse.json({ ok: true, message: "telegram webhook alive (app router)" });
 }
@@ -90,7 +118,7 @@ export async function POST(req: Request) {
     }
     // === END ANTI NYAMBER ===
 
-    // 1) Handle /start dari user
+    // 1) Handle /start /status /help dari user
     if (update.message && update.message.text) {
       const chatId = update.message.chat.id;
       const text = String(update.message.text || "").trim();
@@ -153,12 +181,123 @@ bukan spekulasi asal.
             ],
           },
         });
-      } else {
+
+        return NextResponse.json({ ok: true });
+      }
+
+      // ✅ ADDED: /help
+      if (text === "/help") {
         await tg("sendMessage", {
           chat_id: chatId,
-          text: "Perintah tidak dikenal. Coba ketik /start ya 👌",
+          text:
+`🆘 *Bantuan KOINITY Bot*
+
+Perintah:
+• /start  → Menu utama
+• /status → Cek masa aktif membership (tanggal & tahun lengkap)
+• /help   → Bantuan penggunaan bot
+
+Kalau butuh bantuan admin:
+@koinity_admin`,
+          parse_mode: "Markdown",
         });
+
+        return NextResponse.json({ ok: true });
       }
+
+      // ✅ ADDED: /status (REAL dari DB)
+      if (text === "/status") {
+        try {
+          const telegramId = String(chatId);
+
+          // Ambil subscription aktif terbaru (plan vip, status active)
+          const activeSub = await prisma.subscription.findFirst({
+            where: {
+              status: "active",
+              plan: "vip",
+              member: { telegramId },
+            },
+            orderBy: { endsAt: "desc" },
+            select: {
+              endsAt: true,
+              plan: true,
+              status: true,
+            },
+          });
+
+          // Fallback ke member.expiredAt kalau subscription tidak ketemu
+          const member = await prisma.member.findUnique({
+            where: { telegramId },
+            select: { expiredAt: true, status: true },
+          });
+
+          const now = new Date();
+          const exp = activeSub?.endsAt ?? member?.expiredAt ?? null;
+
+          if (!exp) {
+            await tg("sendMessage", {
+              chat_id: chatId,
+              text:
+`📌 *Status Membership*
+
+Belum ada membership aktif di akun ini.
+
+Ketik /start → pilih paket untuk berlangganan.`,
+              parse_mode: "Markdown",
+            });
+            return NextResponse.json({ ok: true });
+          }
+
+          const expDate = new Date(exp);
+          const isActive = expDate.getTime() > now.getTime();
+
+          // hitung sisa hari (pembulatan ke atas)
+          const diffMs = expDate.getTime() - now.getTime();
+          const remainDays = Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+
+          if (!isActive) {
+            await tg("sendMessage", {
+              chat_id: chatId,
+              text:
+`⚠️ *Membership Tidak Aktif / Sudah Expired*
+
+Berlaku sampai: *${fmtJakartaFull(expDate)}*
+
+Ketik /start untuk berlangganan lagi.`,
+              parse_mode: "Markdown",
+            });
+            return NextResponse.json({ ok: true });
+          }
+
+          await tg("sendMessage", {
+            chat_id: chatId,
+            text:
+`✅ *Membership Aktif*
+
+Berlaku sampai: *${fmtJakartaFull(expDate)}*
+Sisa: *${remainDays} hari*
+
+Kalau ada kendala, hubungi admin:
+@koinity_admin`,
+            parse_mode: "Markdown",
+          });
+
+          return NextResponse.json({ ok: true });
+        } catch (e: any) {
+          console.error("STATUS ERROR:", e?.response?.data || e?.message || e);
+          await tg("sendMessage", {
+            chat_id: chatId,
+            text: "⚠️ Gagal cek status. Coba lagi beberapa saat ya.",
+          });
+          return NextResponse.json({ ok: true });
+        }
+      }
+
+      // selain /start /help /status
+      await tg("sendMessage", {
+        chat_id: chatId,
+        text: "Perintah tidak dikenal. Coba ketik /start ya 👌 (atau /help)",
+      });
 
       return NextResponse.json({ ok: true });
     }

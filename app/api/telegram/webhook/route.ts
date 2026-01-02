@@ -185,27 +185,26 @@ bukan spekulasi asal.
         return NextResponse.json({ ok: true });
       }
 
-      // ✅ ADDED: /help
+      // ✅ FIXED: /help (plain text, no parse_mode)
       if (text === "/help") {
         await tg("sendMessage", {
           chat_id: chatId,
           text:
-`🆘 *Bantuan KOINITY Bot*
+`🆘 Bantuan KOINITY Bot
 
 Perintah:
-• /start  → Menu utama
-• /status → Cek masa aktif membership (tanggal & tahun lengkap)
-• /help   → Bantuan penggunaan bot
+- /start  → Menu utama
+- /status → Cek masa aktif membership (tanggal & tahun lengkap)
+- /help   → Bantuan penggunaan bot
 
 Kalau butuh bantuan admin:
 @koinity_admin`,
-          parse_mode: "Markdown",
         });
 
         return NextResponse.json({ ok: true });
       }
 
-      // ✅ ADDED: /status (REAL dari DB)
+      // ✅ FIXED: /status (plain text, no parse_mode)
       if (text === "/status") {
         try {
           const telegramId = String(chatId);
@@ -238,12 +237,11 @@ Kalau butuh bantuan admin:
             await tg("sendMessage", {
               chat_id: chatId,
               text:
-`📌 *Status Membership*
+`📌 Status Membership
 
 Belum ada membership aktif di akun ini.
 
 Ketik /start → pilih paket untuk berlangganan.`,
-              parse_mode: "Markdown",
             });
             return NextResponse.json({ ok: true });
           }
@@ -259,12 +257,11 @@ Ketik /start → pilih paket untuk berlangganan.`,
             await tg("sendMessage", {
               chat_id: chatId,
               text:
-`⚠️ *Membership Tidak Aktif / Sudah Expired*
+`⚠️ Membership Tidak Aktif / Sudah Expired
 
-Berlaku sampai: *${fmtJakartaFull(expDate)}*
+Berlaku sampai: ${fmtJakartaFull(expDate)}
 
 Ketik /start untuk berlangganan lagi.`,
-              parse_mode: "Markdown",
             });
             return NextResponse.json({ ok: true });
           }
@@ -272,14 +269,13 @@ Ketik /start untuk berlangganan lagi.`,
           await tg("sendMessage", {
             chat_id: chatId,
             text:
-`✅ *Membership Aktif*
+`✅ Membership Aktif
 
-Berlaku sampai: *${fmtJakartaFull(expDate)}*
-Sisa: *${remainDays} hari*
+Berlaku sampai: ${fmtJakartaFull(expDate)}
+Sisa: ${remainDays} hari
 
 Kalau ada kendala, hubungi admin:
 @koinity_admin`,
-            parse_mode: "Markdown",
           });
 
           return NextResponse.json({ ok: true });

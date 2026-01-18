@@ -5,7 +5,6 @@ import crypto from "crypto";
 export const runtime = "nodejs";
 
 declare global {
-  // eslint-disable-next-line no-var
   var prisma: PrismaClient | undefined;
 }
 
@@ -43,8 +42,6 @@ function pickNowPaymentsSummary(body: any) {
     outcome_currency: get("outcome_currency"),
     invoice_id: get("invoice_id"),
     pay_address: get("pay_address"),
-    payin_extra_id: get("payin_extra_id"),
-    payment_extra_ids: get("payment_extra_ids"),
     created_at: get("created_at"),
     updated_at: get("updated_at"),
   };
@@ -64,7 +61,10 @@ function verifyNowPaymentsSigFromRaw(rawBody: string, sigHeader: string | null) 
 
   if (!sigHeader) return { ok: false as const, error: "Missing x-nowpayments-sig" };
 
-  const computed = crypto.createHmac("sha512", secret).update(rawBody, "utf8").digest("hex");
+  const computed = crypto
+    .createHmac("sha512", secret)
+    .update(rawBody, "utf8")
+    .digest("hex");
 
   const a = computed.trim().toLowerCase();
   const b = sigHeader.trim().toLowerCase();
@@ -84,8 +84,7 @@ function parseFromOrderDescription(desc: string): { telegramId: string; days: nu
 
   if (paket.includes("1bulan")) return { telegramId, days: 30, plan: "vip" };
   if (paket.includes("3bulan")) return { telegramId, days: 90, plan: "vip" };
-  if (paket.includes("1tahun") || paket.includes("12bulan") || paket.includes("12bln"))
-    return { telegramId, days: 365, plan: "vip" };
+  if (paket.includes("1tahun") || paket.includes("12bulan") || paket.includes("12bln")) return { telegramId, days: 365, plan: "vip" };
 
   return null;
 }
@@ -93,6 +92,10 @@ function parseFromOrderDescription(desc: string): { telegramId: string; days: nu
 function fmtDateJakarta(d: Date) {
   return d.toISOString().slice(0, 10);
 }
+
+/* =========================
+   TELEGRAM HELPERS
+========================= */
 
 async function telegramCreateInviteLink() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -113,6 +116,7 @@ async function telegramCreateInviteLink() {
 
   const json = await res.json();
   if (!json.ok) throw new Error(`Failed to create invite link: ${truncate(JSON.stringify(json), 1200)}`);
+
   return json.result.invite_link as string;
 }
 
@@ -135,6 +139,24 @@ async function telegramSendMessageHTML(telegramId: string, html: string) {
   if (!json.ok) throw new Error(`Telegram sendMessage failed: ${truncate(JSON.stringify(json), 1200)}`);
 }
 
+/* =========================
+   NEW — MEMBERSHIP CHECK
+========================= */
+
+async function telegramCheckMembership(telegramId: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN!;
+  const groupId = process.env.TELEGRAM_GROUP_ID!;
+  const url = `https://api.telegram.org/bot${token}/getChatMember?chat_id=${groupId}&user_id=${telegramId}`;
+
+  try {
+    const res = await fetch(url);
+    const json = await res.json();
+    if (!json.ok) return "unknown";
+    return json.result.status as string;
+  } catch {
+    return "unknown";
+  }
+}
 /* =========================
    IPN HANDLER
 ========================= */
@@ -181,6 +203,7 @@ export async function POST(req: Request) {
       console.log("❌ IPN missing payment_id", { reqId, keys, summary });
       return NextResponse.json({ ok: false, error: "payment_id missing" }, { status: 400 });
     }
+
     paymentIdForUnlock = paymentId;
 
     console.log("🧾 IPN DETAILS", {
@@ -210,12 +233,12 @@ export async function POST(req: Request) {
     }
 
     /* =========================
-       MODE-S: CEK UNDERPAID
+       UNDERPAID CHECK
     ========================== */
     const expected = Number(body.price_amount || 0);
     const received = Number(body.actually_paid || body.pay_amount || 0);
     const short = expected - received;
-    const tolerated = short <= 0.01; // toleransi USD ~1 cent
+    const tolerated = short <= 0.01; // toleransi ~1 cent
 
     if (!tolerated) {
       console.log("⚠️ UNDERPAID — NO INVITE", {
@@ -227,16 +250,16 @@ export async function POST(req: Request) {
         status,
       });
 
-      const parsed = parseFromOrderDescription(desc);
-      if (parsed?.telegramId) {
-        const telegramId = parsed.telegramId;
+      const parsedForUnderpaid = parseFromOrderDescription(desc);
+      if (parsedForUnderpaid?.telegramId) {
+        const telegramId = parsedForUnderpaid.telegramId;
 
         const html =
           `⚠️ <b>Pembayaran tidak mencukupi</b>\n\n` +
           `Harga: <b>$${expected.toFixed(2)}</b>\n` +
           `Diterima: <b>$${received.toFixed(2)}</b>\n` +
           `Kurang: <b>$${short.toFixed(2)}</b>\n\n` +
-          `Silakan melakukan pembayaran ulang dengan memperhatikan biaya jaringan / exchange.\n\n` +
+          `Silakan bayar ulang dengan memperhatikan fee jaringan.\n\n` +
           `⛔ <b>Akses VIP belum aktif.</b>`;
 
         try {
@@ -250,9 +273,8 @@ export async function POST(req: Request) {
     }
 
     /* =========================
-       LANJUT LOGIC EXISTING
+       IDEMPOTENT LOCK
     ========================== */
-
     const claimed = await prisma.payment.updateMany({
       where: { paymentId, inviteSentAt: null },
       data: { inviteSentAt: new Date() },
@@ -279,12 +301,15 @@ export async function POST(req: Request) {
 
       return NextResponse.json({ ok: true, warning: "cannot parse order_description" });
     }
-
     const telegramId = parsed.telegramId;
     const days = parsed.days;
     const plan = parsed.plan;
 
     const now = new Date();
+
+    /* =========================
+       EXTEND SUBSCRIPTION LOGIC
+    ========================== */
 
     const lastActiveSub = await prisma.subscription.findFirst({
       where: { member: { telegramId }, status: "active", plan },
@@ -297,6 +322,15 @@ export async function POST(req: Request) {
         : now;
 
     const endsAt = new Date(baseTime.getTime() + days * 24 * 60 * 60 * 1000);
+
+    console.log("🧮 SUB-EXTEND", {
+      reqId,
+      telegramId,
+      plan,
+      days,
+      baseTime: baseTime.toISOString(),
+      endsAt: endsAt.toISOString(),
+    });
 
     const member = await prisma.$transaction(async (tx) => {
       const m = await tx.member.upsert({
@@ -317,48 +351,120 @@ export async function POST(req: Request) {
         });
       } else {
         await tx.subscription.create({
-          data: { memberId: m.id, plan, startsAt: now, endsAt, status: "active", lastCheckedAt: now },
+          data: {
+            memberId: m.id,
+            plan,
+            startsAt: now,
+            endsAt,
+            status: "active",
+            lastCheckedAt: now,
+          },
         });
       }
 
       return m;
     });
 
-    const inviteLink = await telegramCreateInviteLink();
-    await prisma.member.update({
-      where: { id: member.id },
-      data: { inviteLink },
+    console.log("👤 MEMBER UPSERT OK", {
+      reqId,
+      telegramId,
+      memberId: member.id,
+      endsAt: endsAt.toISOString(),
     });
 
-    const html =
-      `✅ <b>Pembayaran berhasil!</b>\n\n` +
-      `🧾 Payment ID: <code>${escapeHtml(String(paymentId))}</code>\n` +
-      `🎟️ VIP aktif <b>${escapeHtml(String(days))} hari</b>\n` +
-      `⏳ Sampai: <b>${escapeHtml(fmtDateJakarta(endsAt))}</b>\n\n` +
-      `👉 Link join VIP Group (1x pakai):\n${escapeHtml(inviteLink)}\n\n` +
-      `Kalau link expired, chat admin.`;
+    /* =========================
+       🔥 ANTI SEAT-SHARING SECTION
+       Placement = setelah extend
+    ========================== */
 
-    await telegramSendMessageHTML(telegramId, html);
+    const membership = await telegramCheckMembership(telegramId);
 
-    console.log("✅ IPN OK", {
+    console.log("🔍 TG MEMBERSHIP CHECK", {
+      reqId,
+      telegramId,
+      membership,
+    });
+
+    const isInGroup =
+      membership === "member" ||
+      membership === "administrator" ||
+      membership === "creator";
+
+    if (!isInGroup) {
+      /* =========================
+         CASE A — NEW / EXPIRED USER
+         → kirim link invite
+      ========================== */
+
+      const inviteLink = await telegramCreateInviteLink();
+
+      await prisma.member.update({
+        where: { id: member.id },
+        data: { inviteLink },
+      });
+
+      console.log("🎟️ INVITE CREATED", {
+        reqId,
+        telegramId,
+        inviteLink,
+      });
+
+      const html =
+        `✅ <b>Pembayaran berhasil!</b>\n\n` +
+        `🎫 Paket: <b>${escapeHtml(plan.toUpperCase())}</b>\n` +
+        `⏳ Durasi: <b>${days} hari</b>\n` +
+        `📅 Sampai: <b>${fmtDateJakarta(endsAt)}</b>\n\n` +
+        `👉 Link Join VIP (1x pakai):\n${escapeHtml(inviteLink)}\n\n` +
+        `Kalau expired atau error, chat admin.`;
+
+      await telegramSendMessageHTML(telegramId, html);
+
+    } else {
+      /* =========================
+         CASE B — RENEWAL SAAT MASIH DI GROUP
+         → tidak kirim invite
+      ========================== */
+
+      console.log("♻️ RENEWAL NO INVITE", {
+        reqId,
+        telegramId,
+        days,
+        endsAt: endsAt.toISOString(),
+      });
+
+      const html =
+        `♻️ <b>Perpanjangan berhasil!</b>\n\n` +
+        `🎫 Paket: <b>${escapeHtml(plan.toUpperCase())}</b>\n` +
+        `⏳ Durasi tambah: <b>${days} hari</b>\n` +
+        `📅 Sampai: <b>${fmtDateJakarta(endsAt)}</b>\n\n` +
+        `Kamu masih dalam VIP Group jadi tidak perlu link baru.`;
+
+      await telegramSendMessageHTML(telegramId, html);
+    }
+
+    console.log("✅ IPN VIP ACCESS OK", {
       reqId,
       paymentId,
-      status,
       telegramId,
       days,
       plan,
       endsAt: endsAt.toISOString(),
       ms: Date.now() - startedAt,
-      summary,
     });
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     console.error("❌ IPN ERROR:", {
-      message: e?.message ?? String(e),
       reqId,
+      message: e?.message ?? String(e),
+      stack: e?.stack,
       paymentId: paymentIdForUnlock,
     });
+
+    /* =========================
+       IDEMPOTENT UNLOCK
+       kalau error pas tengah jalan
+    ========================== */
 
     if (paymentIdForUnlock) {
       try {
@@ -366,12 +472,20 @@ export async function POST(req: Request) {
           where: { paymentId: paymentIdForUnlock },
           data: { inviteSentAt: null },
         });
-        console.log("🔓 UNLOCK OK", { reqId, paymentId: paymentIdForUnlock });
+
+        console.log("🔓 UNLOCK OK", {
+          reqId,
+          paymentId: paymentIdForUnlock,
+        });
       } catch (unlockErr) {
-        console.error("❌ UNLOCK FAILED:", { reqId, paymentId: paymentIdForUnlock, unlockErr });
+        console.error("❌ UNLOCK FAILED:", {
+          reqId,
+          paymentId: paymentIdForUnlock,
+          unlockErr: unlockErr,
+        });
       }
     }
 
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: e?.message ?? String(e) }, { status: 500 });
   }
 }

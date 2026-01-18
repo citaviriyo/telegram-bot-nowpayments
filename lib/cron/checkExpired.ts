@@ -45,13 +45,11 @@ async function tgSendMessage(chatId: number, text: string) {
 }
 
 async function tgKick(groupId: string, userId: number) {
-  // ban lalu unban = “kick”
   await tgPost("banChatMember", {
     chat_id: Number(groupId),
     user_id: Number(userId),
     revoke_messages: false,
   });
-
   await tgPost("unbanChatMember", {
     chat_id: Number(groupId),
     user_id: Number(userId),
@@ -71,12 +69,6 @@ function isAdminOrOwner(status?: string) {
   return status === "creator" || status === "administrator";
 }
 
-/**
- * Cron runner
- * @param {object} opts
- * @param {boolean} opts.dryRun - kalau true: tidak kirim pesan/kick
- * @param {boolean} opts.writeDb - kalau dryRun tapi tetap mau update kolom warn/kicked untuk simulasi
- */
 export async function runCheckExpired(opts: RunOpts = {}) {
   assertEnv();
 
@@ -121,11 +113,10 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       for (const s of list) {
         await handler(s);
       }
-      // NOTE: row yang sudah diupdate (warn/kicked/status) akan keluar dari filter, jadi batch akan maju sendiri.
     }
   }
 
-  // ========= H-3 WARNING =========
+  // H-3
   await processBatches(
     {
       where: {
@@ -136,7 +127,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       include: { member: true },
     },
     async (s) => {
-      const telegramId: string | undefined = s?.member?.telegramId;
+      const telegramId = s?.member?.telegramId;
       if (!telegramId) return;
 
       const chatId = toTgId(telegramId);
@@ -147,14 +138,10 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       const msg =
         `⚠️ <b>Reminder H-3</b>\n\n` +
         `Langganan VIP kamu akan <b>berakhir dalam 3 hari</b>.\n` +
-        `Silakan perpanjang biar akses tidak terputus. 🙏`;
+        `Silakan perpanjang. 🙏`;
 
-      if (dryRun) {
-        console.log("🟨 DRY RUN aktif: skip sendMessage H-3", { subId: s.id, telegramId });
-      } else {
-        await safeStep(s.id, telegramId, "H3_SEND", async () => {
-          await tgSendMessage(chatId, msg);
-        });
+      if (!dryRun) {
+        await safeStep(s.id, telegramId, "H3_SEND", () => tgSendMessage(chatId, msg));
       }
 
       if (!dryRun || writeDb) {
@@ -168,7 +155,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
     }
   );
 
-  // ========= H-1 WARNING =========
+  // H-1
   await processBatches(
     {
       where: {
@@ -179,7 +166,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       include: { member: true },
     },
     async (s) => {
-      const telegramId: string | undefined = s?.member?.telegramId;
+      const telegramId = s?.member?.telegramId;
       if (!telegramId) return;
 
       const chatId = toTgId(telegramId);
@@ -190,14 +177,10 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       const msg =
         `⏰ <b>Reminder H-1</b>\n\n` +
         `Langganan VIP kamu akan <b>berakhir besok</b>.\n` +
-        `Kalau tidak diperpanjang, sistem akan otomatis remove dari grup saat expired.`;
+        `Kalau tidak diperpanjang, kamu akan dikeluarkan dari grup.`;
 
-      if (dryRun) {
-        console.log("🟧 DRY RUN aktif: skip sendMessage H-1", { subId: s.id, telegramId });
-      } else {
-        await safeStep(s.id, telegramId, "H1_SEND", async () => {
-          await tgSendMessage(chatId, msg);
-        });
+      if (!dryRun) {
+        await safeStep(s.id, telegramId, "H1_SEND", () => tgSendMessage(chatId, msg));
       }
 
       if (!dryRun || writeDb) {
@@ -211,18 +194,18 @@ export async function runCheckExpired(opts: RunOpts = {}) {
     }
   );
 
-  // ========= EXPIRED (KICK) =========
+  // ======= EXPIRED =======
   await processBatches(
     {
       where: {
         status: "active",
         endsAt: { lte: now },
-        kickedAt: null, // anti dobel kick
+        kickedAt: null,
       },
       include: { member: true },
     },
     async (s) => {
-      const telegramId: string | undefined = s?.member?.telegramId;
+      const telegramId = s?.member?.telegramId;
       if (!telegramId) return;
 
       stats.expiredFound++;
@@ -230,7 +213,6 @@ export async function runCheckExpired(opts: RunOpts = {}) {
 
       console.log("🟥 CRON EXPIRED", { subId: s.id, telegramId, endsAt: s.endsAt?.toISOString?.(), dryRun });
 
-      // --- Safety: jangan kick admin/owner grup ---
       let roleStatus: string | undefined;
       let roleCheckOk = false;
 
@@ -240,9 +222,40 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         roleCheckOk = true;
       });
 
-      // fail-safe: kalau gak bisa cek role, jangan kick
+      // ===== PATCH START — MEMBER_NOT_FOUND handling =====
       if (!roleCheckOk) {
-        console.log("🟪 SKIP (ROLE_CHECK_FAILED) - fail-safe no kick", { subId: s.id, telegramId, chatId });
+        const lastErr = stats.errors.at(-1)?.error ?? "";
+        const memberNotFound =
+          lastErr.includes("member not found") ||
+          lastErr.includes("USER_ID_INVALID") ||
+          lastErr.includes("PEER_ID_INVALID") ||
+          lastErr.toLowerCase().includes("not found");
+
+        if (memberNotFound) {
+          console.log("ℹ️ MEMBER_NOT_FOUND — CLOSE SUB", { subId: s.id, telegramId, chatId });
+
+          if (!dryRun || writeDb) {
+            await safeStep(s.id, telegramId, "CLOSE_DB", async () => {
+              await prisma.subscription.update({
+                where: { id: s.id },
+                data: {
+                  status: "expired",
+                  kickedAt: now, // penting untuk stop cron
+                  lastCheckedAt: now,
+                },
+              });
+
+              await prisma.member.update({
+                where: { id: s.member.id },
+                data: { status: "EXPIRED" },
+              });
+            });
+          }
+          return; // STOP → final
+        }
+
+        // fallback lama
+        console.log("🟪 SKIP (ROLE_CHECK_FAILED) - fallback", { subId: s.id, telegramId, chatId });
 
         if (!dryRun || writeDb) {
           await safeStep(s.id, telegramId, "ROLE_CHECK_FAILED_DB", async () => {
@@ -254,6 +267,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         }
         return;
       }
+      // ===== PATCH END =====
 
       if (isAdminOrOwner(roleStatus)) {
         stats.skippedAdminOwner++;
@@ -270,10 +284,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         return;
       }
 
-      // --- Normal member: kick + message + update DB ---
-      if (dryRun) {
-        console.log("🟥 DRY RUN aktif: skip KICK + sendMessage expired", { subId: s.id, telegramId });
-      } else {
+      if (!dryRun) {
         await safeStep(s.id, telegramId, "KICK", async () => {
           await tgKick(String(VIP_GROUP_ID), chatId);
           stats.kicked++;
@@ -282,9 +293,9 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         await safeStep(s.id, telegramId, "EXPIRED_SEND", async () => {
           await tgSendMessage(
             chatId,
-            `❌ <b>Langganan kamu sudah expired</b>\n\n` +
-              `Akses VIP sudah dihentikan dan kamu dikeluarkan dari grup.\n` +
-              `Kalau mau join lagi, silakan bayar ulang. 🙏`
+            `❌ <b>Langganan sudah expired</b>\n\n` +
+              `Akses VIP dihentikan & kamu dikeluarkan dari grup.\n` +
+              `Silakan subscribe lagi kalau mau lanjut. 🙏`
           );
         });
       }

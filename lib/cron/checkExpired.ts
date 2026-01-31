@@ -73,161 +73,162 @@ function isAdminOrOwner(status?: string) {
 export async function runCheckExpired(opts: RunOpts = {}) {
   assertEnv();
 
-  const dryRun = Boolean(opts.dryRun);
-  const writeDb = Boolean(opts.writeDb);
+  try {
+    const dryRun = Boolean(opts.dryRun);
+    const writeDb = Boolean(opts.writeDb);
 
-  const now = new Date();
-  const in3Days = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-  const in1Day = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const in3Days = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const in1Day = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
 
-  const stats: any = {
-    warnH3: 0,
-    warnH1: 0,
-    expiredFound: 0,
-    kicked: 0,
-    skippedAdminOwner: 0,
-    dryRun,
-    errors: [] as Array<{ subId: string; telegramId?: string; step: string; error: string }>,
-  };
+    const stats: any = {
+      warnH3: 0,
+      warnH1: 0,
+      expiredFound: 0,
+      kicked: 0,
+      skippedAdminOwner: 0,
+      dryRun,
+      errors: [] as Array<{ subId: string; telegramId?: string; step: string; error: string }>,
+    };
 
-  // CLEAN LOG safeStep
-  async function safeStep(
-    subId: string,
-    telegramId: string | undefined,
-    step: string,
-    fn: () => Promise<void>
-  ) {
-    try {
-      await fn();
-    } catch (e: any) {
-      const msg = String(e?.message || e);
+    async function safeStep(
+      subId: string,
+      telegramId: string | undefined,
+      step: string,
+      fn: () => Promise<void>
+    ) {
+      try {
+        await fn();
+      } catch (e: any) {
+        const msg = String(e?.message || e);
 
-      const isMemberNotFound =
-        step === "ROLE_CHECK" &&
-        (msg.includes("member not found") ||
-          msg.includes("USER_ID_INVALID") ||
-          msg.includes("PEER_ID_INVALID") ||
-          msg.toLowerCase().includes("not found"));
+        const isMemberNotFound =
+          step === "ROLE_CHECK" &&
+          (msg.includes("member not found") ||
+            msg.includes("USER_ID_INVALID") ||
+            msg.includes("PEER_ID_INVALID") ||
+            msg.toLowerCase().includes("not found"));
 
-      if (isMemberNotFound) {
-        console.info(`ℹ️ MEMBER_NOT_FOUND (STATE) step=${step}`, {
-          subId,
+        if (isMemberNotFound) {
+          console.info(`ℹ️ MEMBER_NOT_FOUND (STATE) step=${step}`, {
+            subId,
+            telegramId,
+          });
+          return;
+        }
+
+        console.warn(`⚠️ CRON WARN step=${step}`, { subId, telegramId, error: msg });
+        stats.errors.push({ subId, telegramId, step, error: msg });
+      }
+    }
+
+    async function processBatches(findManyArgs: any, handler: (s: any) => Promise<void>) {
+      let loop = 0;
+      while (loop < 50) {
+        loop++;
+        const list = await prisma.subscription.findMany({
+          ...findManyArgs,
+          take: 100,
+          orderBy: { endsAt: "asc" },
+        });
+        if (!list.length) break;
+        for (const s of list) {
+          await handler(s);
+        }
+      }
+    }
+
+    // ========================
+    //         H-3 REMINDER
+    // ========================
+    await processBatches(
+      {
+        where: {
+          status: "active",
+          endsAt: { gt: in1Day, lte: in3Days },
+          warn3SentAt: null,
+        },
+        include: { member: true },
+      },
+      async (s) => {
+        const telegramId = s?.member?.telegramId;
+        if (!telegramId) return;
+
+        const chatId = toTgId(telegramId);
+        stats.warnH3++;
+
+        console.log("🟨 CRON H-3", {
+          subId: s.id,
           telegramId,
+          endsAt: s.endsAt?.toISOString?.(),
+          dryRun,
         });
-        return;
-      }
 
-      console.warn(`⚠️ CRON WARN step=${step}`, { subId, telegramId, error: msg });
-      stats.errors.push({ subId, telegramId, step, error: msg });
-    }
-  }
+        const msg =
+          `⚠️ <b>Reminder H-3</b>\n\n` +
+          `Langganan VIP kamu akan <b>berakhir dalam 3 hari</b>.\n` +
+          `Silakan segera perpanjang. 🙏`;
 
-  async function processBatches(findManyArgs: any, handler: (s: any) => Promise<void>) {
-    let loop = 0;
-    while (loop < 50) {
-      loop++;
-      const list = await prisma.subscription.findMany({
-        ...findManyArgs,
-        take: 100,
-        orderBy: { endsAt: "asc" },
-      });
-      if (!list.length) break;
-      for (const s of list) {
-        await handler(s);
-      }
-    }
-  }
-  // ========================
-  //         H-3 REMINDER
-  // ========================
-  await processBatches(
-    {
-      where: {
-        status: "active",
-        endsAt: { gt: in1Day, lte: in3Days },
-        warn3SentAt: null,
-      },
-      include: { member: true },
-    },
-    async (s) => {
-      const telegramId = s?.member?.telegramId;
-      if (!telegramId) return;
+        if (!dryRun) {
+          await safeStep(s.id, telegramId, "H3_SEND", () => tgSendMessage(chatId, msg));
+        }
 
-      const chatId = toTgId(telegramId);
-      stats.warnH3++;
-
-      console.log("🟨 CRON H-3", {
-        subId: s.id,
-        telegramId,
-        endsAt: s.endsAt?.toISOString?.(),
-        dryRun,
-      });
-
-      const msg =
-        `⚠️ <b>Reminder H-3</b>\n\n` +
-        `Langganan VIP kamu akan <b>berakhir dalam 3 hari</b>.\n` +
-        `Silakan segera perpanjang. 🙏`;
-
-      if (!dryRun) {
-        await safeStep(s.id, telegramId, "H3_SEND", () => tgSendMessage(chatId, msg));
-      }
-
-      if (!dryRun || writeDb) {
-        await safeStep(s.id, telegramId, "H3_DB", async () => {
-          await prisma.subscription.update({
-            where: { id: s.id },
-            data: { warn3SentAt: now, lastCheckedAt: now },
+        if (!dryRun || writeDb) {
+          await safeStep(s.id, telegramId, "H3_DB", async () => {
+            await prisma.subscription.update({
+              where: { id: s.id },
+              data: { warn3SentAt: now, lastCheckedAt: now },
+            });
           });
-        });
+        }
       }
-    }
-  );
+    );
 
-  // ========================
-  //         H-1 REMINDER
-  // ========================
-  await processBatches(
-    {
-      where: {
-        status: "active",
-        endsAt: { gt: now, lte: in1Day },
-        warn1SentAt: null,
+    // ========================
+    //         H-1 REMINDER
+    // ========================
+    await processBatches(
+      {
+        where: {
+          status: "active",
+          endsAt: { gt: now, lte: in1Day },
+          warn1SentAt: null,
+        },
+        include: { member: true },
       },
-      include: { member: true },
-    },
-    async (s) => {
-      const telegramId = s?.member?.telegramId;
-      if (!telegramId) return;
+      async (s) => {
+        const telegramId = s?.member?.telegramId;
+        if (!telegramId) return;
 
-      const chatId = toTgId(telegramId);
-      stats.warnH1++;
+        const chatId = toTgId(telegramId);
+        stats.warnH1++;
 
-      console.log("🟧 CRON H-1", {
-        subId: s.id,
-        telegramId,
-        endsAt: s.endsAt?.toISOString?.(),
-        dryRun,
-      });
-
-      const msg =
-        `⏰ <b>Reminder H-1</b>\n\n` +
-        `Langganan VIP akan <b>berakhir besok</b>.\n` +
-        `Jika tidak diperpanjang, kamu akan dikeluarkan dari grup.`;
-
-      if (!dryRun) {
-        await safeStep(s.id, telegramId, "H1_SEND", () => tgSendMessage(chatId, msg));
-      }
-
-      if (!dryRun || writeDb) {
-        await safeStep(s.id, telegramId, "H1_DB", async () => {
-          await prisma.subscription.update({
-            where: { id: s.id },
-            data: { warn1SentAt: now, lastCheckedAt: now },
-          });
+        console.log("🟧 CRON H-1", {
+          subId: s.id,
+          telegramId,
+          endsAt: s.endsAt?.toISOString?.(),
+          dryRun,
         });
+
+        const msg =
+          `⏰ <b>Reminder H-1</b>\n\n` +
+          `Langganan VIP akan <b>berakhir besok</b>.\n` +
+          `Jika tidak diperpanjang, kamu akan dikeluarkan dari grup.`;
+
+        if (!dryRun) {
+          await safeStep(s.id, telegramId, "H1_SEND", () => tgSendMessage(chatId, msg));
+        }
+
+        if (!dryRun || writeDb) {
+          await safeStep(s.id, telegramId, "H1_DB", async () => {
+            await prisma.subscription.update({
+              where: { id: s.id },
+              data: { warn1SentAt: now, lastCheckedAt: now },
+            });
+          });
+        }
       }
-    }
-  );
+    );
   // ========================
   //          EXPIRED
   // ========================
@@ -378,5 +379,10 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       }
     }
   );
+
   return stats;
+} finally {
+  // 🔑 PATCH PENUTUP — WAJIB
+  await prisma.$disconnect();
+}
 }

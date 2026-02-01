@@ -249,34 +249,54 @@ Ketik /start → pilih paket untuk berlangganan.`,
           const expDate = new Date(exp);
           const isActive = expDate.getTime() > now.getTime();
 
-          // hitung sisa hari (pembulatan ke atas)
-          const diffMs = expDate.getTime() - now.getTime();
-          const remainDays = Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+          // hitung sisa waktu (hari / jam / menit)
+const diffMs = expDate.getTime() - now.getTime();
+const diffMinutes = Math.max(0, Math.floor(diffMs / (1000 * 60)));
 
-          if (!isActive) {
-            await tg("sendMessage", {
-              chat_id: chatId,
-              text:
+let remainText = "";
+
+if (diffMinutes < 60) {
+  // < 1 jam → menit
+  remainText = `${diffMinutes} menit`;
+} else if (diffMinutes < 1440) {
+  // < 24 jam → jam (+ menit)
+  const hours = Math.floor(diffMinutes / 60);
+  const minutes = diffMinutes % 60;
+  remainText =
+    minutes > 0
+      ? `${hours} jam ${minutes} menit`
+      : `${hours} jam`;
+} else {
+  // ≥ 1 hari → hari
+  const days = Math.ceil(diffMinutes / 1440);
+  remainText = `${days} hari`;
+}
+
+if (!isActive) {
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text:
 `⚠️ Membership Tidak Aktif / Sudah Expired
 
 Berlaku sampai: ${fmtJakartaFull(expDate)}
 
 Ketik /start untuk berlangganan lagi.`,
-            });
-            return NextResponse.json({ ok: true });
-          }
+  });
+  return NextResponse.json({ ok: true });
+}
 
-          await tg("sendMessage", {
-            chat_id: chatId,
-            text:
+await tg("sendMessage", {
+  chat_id: chatId,
+  text:
 `✅ Membership Aktif
 
 Berlaku sampai: ${fmtJakartaFull(expDate)}
-Sisa: ${remainDays} hari
+Sisa: ${remainText}
 
 Kalau ada kendala, hubungi admin:
 @koinity_admin`,
-          });
+});
+
 
           return NextResponse.json({ ok: true });
         } catch (e: any) {

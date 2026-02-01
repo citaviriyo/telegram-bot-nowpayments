@@ -181,12 +181,13 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         }
 
         if (!dryRun || writeDb) {
-          await safeStep(s.id, telegramId, "H3_DB", () =>
-            prisma.subscription.update({
-              where: { id: s.id },
-              data: { warn3SentAt: now, lastCheckedAt: now },
-            })
-          );
+          await safeStep(s.id, telegramId, "H3_DB", async () => {
+  await prisma.subscription.update({
+    where: { id: s.id },
+    data: { warn3SentAt: now }
+  });
+});
+
         }
       }
     );
@@ -222,12 +223,13 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         }
 
         if (!dryRun || writeDb) {
-          await safeStep(s.id, telegramId, "H1_DB", () =>
-            prisma.subscription.update({
-              where: { id: s.id },
-              data: { warn1SentAt: now, lastCheckedAt: now },
-            })
-          );
+         await safeStep(s.id, telegramId, "H1_DB", async () => {
+  await prisma.subscription.update({
+    where: { id: s.id },
+    data: { warn1SentAt: now, lastCheckedAt: now },
+  });
+});
+
         }
       }
     );

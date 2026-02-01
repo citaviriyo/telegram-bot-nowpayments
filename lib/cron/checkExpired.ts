@@ -234,28 +234,35 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       }
     );
 
-    // ===== END PART 1 =====
-    // ========================
-    //          EXPIRED
-    // ========================
-    await processBatches(
-      {
-        where: {
-          status: "active",
-          endsAt: { lte: now },
-          kickedAt: null,
-        },
-        include: { member: true },
-      },
-      async (s) => {
-        const telegramId = s?.member?.telegramId;
-        if (!telegramId) return;
+   // ===== END PART 1 =====
+// ========================
+//          EXPIRED
+// ========================
+await processBatches(
+  {
+    where: {
+      endsAt: { lte: now },
+      kickedAt: null,
+    },
+    include: { member: true },
+  },
+  async (s) => {
 
-        stats.expiredFound++;
-        const chatId = toTgId(telegramId);
+    // 🔒 TAMBAHAN PENGAMAN (WAJIB TARUH DI SINI)
+    if (!s.endsAt) return;
+    if (s.endsAt.getTime() > now.getTime()) return;
 
-        let roleStatus: string | undefined;
-        let roleCheckOk = false;
+    // ==========================
+    // BARU LOGIC UTAMA DIMULAI
+    // ==========================
+    const telegramId = s?.member?.telegramId;
+    if (!telegramId) return;
+
+    stats.expiredFound++;
+    const chatId = toTgId(telegramId);
+
+    let roleStatus: string | undefined;
+    let roleCheckOk = false;
 
         // ========================
         // ROLE CHECK

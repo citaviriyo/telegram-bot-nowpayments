@@ -87,7 +87,12 @@ export async function runCheckExpired(opts: RunOpts = {}) {
     kicked: 0,
     skippedAdminOwner: 0,
     dryRun,
-    errors: [] as Array<{ subId: string; telegramId?: string; step: string; error: string }>,
+    errors: [] as Array<{
+      subId: string;
+      telegramId?: string;
+      step: string;
+      error: string;
+    }>,
   };
 
   async function safeStep(
@@ -100,28 +105,15 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       await fn();
     } catch (e: any) {
       const msg = String(e?.message || e);
-
-      const isMemberNotFound =
-        step === "ROLE_CHECK" &&
-        (msg.includes("member not found") ||
-          msg.includes("USER_ID_INVALID") ||
-          msg.includes("PEER_ID_INVALID") ||
-          msg.toLowerCase().includes("not found"));
-
-      if (isMemberNotFound) {
-        console.info(`ℹ️ MEMBER_NOT_FOUND (STATE) step=${step}`, {
-          subId,
-          telegramId,
-        });
-        return;
-      }
-
       console.warn(`⚠️ CRON WARN step=${step}`, { subId, telegramId, error: msg });
       stats.errors.push({ subId, telegramId, step, error: msg });
     }
   }
 
-  async function processBatches(findManyArgs: any, handler: (s: any) => Promise<void>) {
+  async function processBatches(
+    findManyArgs: any,
+    handler: (s: any) => Promise<void>
+  ) {
     let loop = 0;
     while (loop < 50) {
       loop++;
@@ -139,14 +131,17 @@ export async function runCheckExpired(opts: RunOpts = {}) {
 
   try {
     // ========================
-    //         H-3 REMINDER
+    // H-3 REMINDER (ROBUST)
     // ========================
     await processBatches(
       {
         where: {
           status: "active",
-          endsAt: { gt: in1Day, lte: in3Days },
           warn3SentAt: null,
+          endsAt: {
+            gt: now,
+            lte: in3Days,
+          },
         },
         include: { member: true },
       },
@@ -154,8 +149,8 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         const telegramId = s?.member?.telegramId;
         if (!telegramId) return;
 
-        const chatId = toTgId(telegramId);
         stats.warnH3++;
+        const chatId = toTgId(telegramId);
 
         if (!dryRun) {
           await safeStep(s.id, telegramId, "H3_SEND", () =>
@@ -172,7 +167,10 @@ export async function runCheckExpired(opts: RunOpts = {}) {
           await safeStep(s.id, telegramId, "H3_DB", () =>
             prisma.subscription.update({
               where: { id: s.id },
-              data: { warn3SentAt: now, lastCheckedAt: now },
+              data: {
+                warn3SentAt: now,
+                lastCheckedAt: now,
+              },
             })
           );
         }
@@ -180,25 +178,26 @@ export async function runCheckExpired(opts: RunOpts = {}) {
     );
 
     // ========================
-    //         H-1 REMINDER (ROBUST)
+    // H-1 REMINDER (ROBUST)
     // ========================
     await processBatches(
       {
         where: {
           status: "active",
-          endsAt: { lte: in1Day },
           warn1SentAt: null,
+          endsAt: {
+            gt: now,
+            lte: in1Day,
+          },
         },
         include: { member: true },
       },
       async (s) => {
-        if (s.endsAt <= now) return; // lewat expired → EXPIRED flow
-
         const telegramId = s?.member?.telegramId;
         if (!telegramId) return;
 
-        const chatId = toTgId(telegramId);
         stats.warnH1++;
+        const chatId = toTgId(telegramId);
 
         if (!dryRun) {
           await safeStep(s.id, telegramId, "H1_SEND", () =>
@@ -215,7 +214,10 @@ export async function runCheckExpired(opts: RunOpts = {}) {
           await safeStep(s.id, telegramId, "H1_DB", () =>
             prisma.subscription.update({
               where: { id: s.id },
-              data: { warn1SentAt: now, lastCheckedAt: now },
+              data: {
+                warn1SentAt: now,
+                lastCheckedAt: now,
+              },
             })
           );
         }
@@ -252,7 +254,9 @@ export async function runCheckExpired(opts: RunOpts = {}) {
           roleCheckOk = true;
         });
 
-        // MEMBER NOT FOUND → CLOSE SILENTLY
+        // ================================
+        // MEMBER_NOT_FOUND → CLOSE SILENT
+        // ================================
         if (!roleCheckOk) {
           if (!dryRun || writeDb) {
             await safeStep(s.id, telegramId, "CLOSE_DB", async () => {
@@ -274,7 +278,9 @@ export async function runCheckExpired(opts: RunOpts = {}) {
           return;
         }
 
-        // 🚨 ADMIN / OWNER — HARD IMMUNE (TIDAK PERNAH DI-KICK)
+        // ====================================
+        // ADMIN / OWNER — HARD IMMUNE (NO KICK)
+        // ====================================
         if (isAdminOrOwner(roleStatus)) {
           stats.skippedAdminOwner++;
 
@@ -282,20 +288,20 @@ export async function runCheckExpired(opts: RunOpts = {}) {
             await safeStep(s.id, telegramId, "ADMIN_EXPIRE_DB", async () => {
               await prisma.subscription.update({
                 where: { id: s.id },
-                data: { status: "expired", lastCheckedAt: now },
+                data: {
+                  status: "expired",
+                  lastCheckedAt: now,
+                },
               });
             });
           }
           return;
         }
 
-        // USER NORMAL → KICK + NOTIF
+        // ====================================
+        // USER EXPIRED → NOTIF + KICK
+        // ====================================
         if (!dryRun) {
-          await safeStep(s.id, telegramId, "KICK", async () => {
-            await tgKick(String(VIP_GROUP_ID), chatId);
-            stats.kicked++;
-          });
-
           await safeStep(s.id, telegramId, "EXPIRED_SEND", async () => {
             await tgSendMessage(
               chatId,
@@ -303,6 +309,11 @@ export async function runCheckExpired(opts: RunOpts = {}) {
                 `Akses VIP dihentikan & kamu dikeluarkan dari grup.\n` +
                 `Silakan berlangganan kembali jika ingin lanjut. 🙏`
             );
+          });
+
+          await safeStep(s.id, telegramId, "KICK", async () => {
+            await tgKick(String(VIP_GROUP_ID), chatId);
+            stats.kicked++;
           });
         }
 
@@ -328,7 +339,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
 
     return stats;
   } finally {
-    // 🔑 WAJIB — INI YANG BIKIN NEON TIDUR
+    // 🔑 WAJIB — MENUTUP KONEKSI PRISMA (NEON IDLE)
     await prisma.$disconnect();
   }
 }

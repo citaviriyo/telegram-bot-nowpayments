@@ -70,8 +70,28 @@ function isAdminOrOwner(status?: string) {
   return status === "creator" || status === "administrator";
 }
 
+/**
+ * 🔥 NEON / PRISMA WARM-UP
+ * Wajib untuk Neon free + serverless cron
+ */
+async function connectWithRetry(retries = 3, delayMs = 1500) {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return;
+    } catch (err) {
+      console.warn(`⚠️ Prisma connect attempt ${i} failed`);
+      if (i === retries) throw err;
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+}
+
 export async function runCheckExpired(opts: RunOpts = {}) {
   assertEnv();
+
+  // 🔥 WAJIB: bangunin Neon sebelum query apa pun
+  await connectWithRetry();
 
   const dryRun = Boolean(opts.dryRun);
   const writeDb = Boolean(opts.writeDb);
@@ -138,10 +158,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         where: {
           status: "active",
           warn3SentAt: null,
-          endsAt: {
-            gt: now,
-            lte: in3Days,
-          },
+          endsAt: { gt: now, lte: in3Days },
         },
         include: { member: true },
       },
@@ -167,10 +184,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
           await safeStep(s.id, telegramId, "H3_DB", () =>
             prisma.subscription.update({
               where: { id: s.id },
-              data: {
-                warn3SentAt: now,
-                lastCheckedAt: now,
-              },
+              data: { warn3SentAt: now, lastCheckedAt: now },
             })
           );
         }
@@ -185,10 +199,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         where: {
           status: "active",
           warn1SentAt: null,
-          endsAt: {
-            gt: now,
-            lte: in1Day,
-          },
+          endsAt: { gt: now, lte: in1Day },
         },
         include: { member: true },
       },
@@ -214,10 +225,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
           await safeStep(s.id, telegramId, "H1_DB", () =>
             prisma.subscription.update({
               where: { id: s.id },
-              data: {
-                warn1SentAt: now,
-                lastCheckedAt: now,
-              },
+              data: { warn1SentAt: now, lastCheckedAt: now },
             })
           );
         }
@@ -247,16 +255,18 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         let roleStatus: string | undefined;
         let roleCheckOk = false;
 
+        // ========================
         // ROLE CHECK
+        // ========================
         await safeStep(s.id, telegramId, "ROLE_CHECK", async () => {
           const cm = await tgGetChatMember(String(VIP_GROUP_ID), chatId);
           roleStatus = cm?.status;
           roleCheckOk = true;
         });
 
-        // ================================
-        // MEMBER_NOT_FOUND → CLOSE SILENT
-        // ================================
+        // =================================
+        // MEMBER NOT FOUND → CLOSE SILENT
+        // =================================
         if (!roleCheckOk) {
           if (!dryRun || writeDb) {
             await safeStep(s.id, telegramId, "CLOSE_DB", async () => {
@@ -283,6 +293,12 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         // ====================================
         if (isAdminOrOwner(roleStatus)) {
           stats.skippedAdminOwner++;
+
+          console.log("🟩 SKIP ADMIN/OWNER", {
+            subId: s.id,
+            telegramId,
+            roleStatus,
+          });
 
           if (!dryRun || writeDb) {
             await safeStep(s.id, telegramId, "ADMIN_EXPIRE_DB", async () => {
@@ -339,7 +355,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
 
     return stats;
   } finally {
-    // 🔑 WAJIB — MENUTUP KONEKSI PRISMA (NEON IDLE)
+    // 🔑 WAJIB — MENUTUP KONEKSI PRISMA (BIAR NEON IDLE)
     await prisma.$disconnect();
   }
 }

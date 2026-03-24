@@ -5,6 +5,15 @@ import type {
   PaymentFulfillmentService,
 } from "@/lib/nowpayments/ipn/types";
 
+type ParsedPaymentDetails = {
+  source: "order_description" | "order_id";
+  telegramId: string;
+  userId: number;
+  plan: string;
+  planLabel: string;
+  days: number;
+};
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -16,7 +25,51 @@ function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function parseOrderDescription(description?: string): { telegramId: string; days: number; plan: string } | null {
+function parseTelegramUserId(value: string | undefined): { telegramId: string; userId: number } | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.trim();
+  if (!/^\d+$/.test(normalized)) {
+    return null;
+  }
+
+  const userId = Number(normalized);
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
+    return null;
+  }
+
+  return {
+    telegramId: normalized,
+    userId,
+  };
+}
+
+function parsePlan(packageLabel: string): { plan: string; planLabel: string; days: number } | null {
+  const normalized = packageLabel.trim().toLowerCase();
+
+  if (normalized.includes("1bulan") || normalized === "monthly") {
+    return { plan: "vip", planLabel: "1bulan", days: 30 };
+  }
+
+  if (normalized.includes("3bulan")) {
+    return { plan: "vip", planLabel: "3bulan", days: 90 };
+  }
+
+  if (
+    normalized.includes("1tahun") ||
+    normalized.includes("12bulan") ||
+    normalized.includes("12bln") ||
+    normalized === "yearly"
+  ) {
+    return { plan: "vip", planLabel: "1tahun", days: 365 };
+  }
+
+  return null;
+}
+
+function parseOrderDescription(description?: string): ParsedPaymentDetails | null {
   if (!description) {
     return null;
   }
@@ -26,27 +79,74 @@ function parseOrderDescription(description?: string): { telegramId: string; days
     return null;
   }
 
-  const telegramId = parts[1];
-  const packageLabel = parts[2].toLowerCase();
-
-  if (!telegramId) {
+  const parsedUser = parseTelegramUserId(parts[1]);
+  const parsedPlan = parsePlan(parts[2]);
+  if (!parsedUser || !parsedPlan) {
     return null;
   }
 
-  if (packageLabel.includes("1bulan")) {
-    return { telegramId, days: 30, plan: "vip" };
+  return {
+    source: "order_description",
+    telegramId: parsedUser.telegramId,
+    userId: parsedUser.userId,
+    plan: parsedPlan.plan,
+    planLabel: parsedPlan.planLabel,
+    days: parsedPlan.days,
+  };
+}
+
+function parseOrderIdFallback(orderId?: string): ParsedPaymentDetails | null {
+  if (!orderId) {
+    return null;
   }
 
-  if (packageLabel.includes("3bulan")) {
-    return { telegramId, days: 90, plan: "vip" };
+  const parts = orderId.split("_").map((part) => part.trim());
+  if (parts.length < 2) {
+    return null;
   }
 
-  if (
-    packageLabel.includes("1tahun") ||
-    packageLabel.includes("12bulan") ||
-    packageLabel.includes("12bln")
-  ) {
-    return { telegramId, days: 365, plan: "vip" };
+  const parsedPlan = parsePlan(parts[0]);
+  const parsedUser = parseTelegramUserId(parts[1]);
+  if (!parsedPlan || !parsedUser) {
+    return null;
+  }
+
+  return {
+    source: "order_id",
+    telegramId: parsedUser.telegramId,
+    userId: parsedUser.userId,
+    plan: parsedPlan.plan,
+    planLabel: parsedPlan.planLabel,
+    days: parsedPlan.days,
+  };
+}
+
+function extractPaymentDetails(payload: NowPaymentsIpnPayload): ParsedPaymentDetails | null {
+  const parsedFromDescription = parseOrderDescription(payload.order_description);
+  if (parsedFromDescription) {
+    console.info("NOWPayments parsed order_description", {
+      payment_id: payload.payment_id,
+      userId: parsedFromDescription.userId,
+      plan: parsedFromDescription.planLabel,
+    });
+
+    return parsedFromDescription;
+  }
+
+  console.error("NOWPayments order_description missing or malformed", {
+    payment_id: payload.payment_id,
+    order_description: payload.order_description,
+  });
+
+  const parsedFromOrderId = parseOrderIdFallback(payload.order_id);
+  if (parsedFromOrderId) {
+    console.info("NOWPayments parsed order_id fallback", {
+      payment_id: payload.payment_id,
+      userId: parsedFromOrderId.userId,
+      plan: parsedFromOrderId.planLabel,
+    });
+
+    return parsedFromOrderId;
   }
 
   return null;
@@ -118,16 +218,22 @@ async function sendHtmlMessage(telegramId: string, html: string): Promise<void> 
 
 export class TelegramPaymentFulfillmentService implements PaymentFulfillmentService {
   async fulfillPayment(payload: NowPaymentsIpnPayload): Promise<FulfillmentResult> {
-    const parsedOrder = parseOrderDescription(payload.order_description);
-    if (!parsedOrder) {
+    const paymentDetails = extractPaymentDetails(payload);
+    if (!paymentDetails) {
+      console.error("NOWPayments fulfillment skipped due to malformed order data", {
+        payment_id: payload.payment_id,
+        order_description: payload.order_description,
+        order_id: payload.order_id,
+      });
+
       return {
         ok: false,
         retryable: false,
-        message: "Unable to determine Telegram user from order_description",
+        message: "Unable to determine Telegram user and plan from order_description or order_id",
       };
     }
 
-    const { telegramId, days, plan } = parsedOrder;
+    const { telegramId, days, plan, planLabel } = paymentDetails;
     const now = new Date();
 
     try {
@@ -201,14 +307,13 @@ export class TelegramPaymentFulfillmentService implements PaymentFulfillmentServ
         return {
           endsAt,
           inviteLink,
-          telegramId,
           isInGroup,
         };
       });
 
       const message = member.isInGroup
-        ? `<b>Subscription renewed successfully.</b>\n\nPlan: <b>${escapeHtml(plan.toUpperCase())}</b>\nAdded duration: <b>${days} days</b>\nActive until: <b>${formatDate(member.endsAt)}</b>\n\nYou are still in the VIP group, so no new invite link is needed.`
-        : `<b>Payment received successfully.</b>\n\nPlan: <b>${escapeHtml(plan.toUpperCase())}</b>\nDuration: <b>${days} days</b>\nActive until: <b>${formatDate(member.endsAt)}</b>\n\nJoin link (single use):\n${escapeHtml(member.inviteLink || "")}\n\nIf the link expires or fails, please contact support.`;
+        ? `<b>Subscription renewed successfully.</b>\n\nPlan: <b>${escapeHtml(planLabel.toUpperCase())}</b>\nAdded duration: <b>${days} days</b>\nActive until: <b>${formatDate(member.endsAt)}</b>\n\nYou are still in the VIP group, so no new invite link is needed.`
+        : `<b>Payment received successfully.</b>\n\nPlan: <b>${escapeHtml(planLabel.toUpperCase())}</b>\nDuration: <b>${days} days</b>\nActive until: <b>${formatDate(member.endsAt)}</b>\n\nJoin link (single use):\n${escapeHtml(member.inviteLink || "")}\n\nIf the link expires or fails, please contact support.`;
 
       try {
         await sendHtmlMessage(telegramId, message);

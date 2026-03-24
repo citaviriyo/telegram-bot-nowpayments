@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { runCheckExpired } from "../../../../lib/cron/checkExpired";
+import { checkExpired } from "@/lib/cron/checkExpired";
 
 export const runtime = "nodejs";
 
@@ -8,7 +8,12 @@ function unauthorized() {
 }
 
 export async function GET() {
-  return NextResponse.json({ ok: true, ping: "kick-expired GET works" });
+  await checkExpired();
+
+  return NextResponse.json({
+    ok: true,
+    message: "cron executed",
+  });
 }
 
 export async function POST(req: Request) {
@@ -29,7 +34,7 @@ export async function POST(req: Request) {
     const dryRun = url.searchParams.get("dryRun") === "1";
     const writeDb = url.searchParams.get("writeDb") === "1";
 
-    const result = await runCheckExpired({ dryRun, writeDb });
+    const result = await checkExpired({ dryRun, writeDb });
 
     return NextResponse.json({
       ok: true,

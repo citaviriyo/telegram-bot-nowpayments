@@ -401,3 +401,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
     await prisma.$disconnect();
   }
 }
+
+export async function checkExpired(opts: RunOpts = {}) {
+  return runCheckExpired(opts);
+}

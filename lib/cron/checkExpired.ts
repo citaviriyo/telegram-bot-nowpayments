@@ -119,6 +119,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
   const writeDb = Boolean(opts.writeDb);
 
   const now = new Date();
+  console.log("NOW", now.toISOString());
   const in3Days = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
   const in1Day = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
 
@@ -267,6 +268,17 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         continue;
       }
 
+      const isExpired = Boolean(subscription.endsAt && subscription.endsAt.getTime() < now.getTime());
+      console.log("expired user check", {
+        telegramId,
+        endsAt: subscription.endsAt?.toISOString?.(),
+        isExpired,
+      });
+
+      if (!isExpired) {
+        continue;
+      }
+
       stats.expiredFound += 1;
       console.info("expired user detected", {
         subId: subscription.id,
@@ -275,6 +287,8 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       });
 
       const chatId = toTgId(telegramId);
+
+      console.log("checking user", { telegramId });
 
       let memberState: ChatMemberResult;
       try {
@@ -286,7 +300,10 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         continue;
       }
 
-      if (isAdminOrOwner(memberState.status)) {
+      const isAdmin = isAdminOrOwner(memberState.status);
+      console.log("admin status", { telegramId, isAdmin });
+
+      if (isAdmin) {
         stats.skippedAdminOwner += 1;
         console.info("user is admin, skipping", {
           subId: subscription.id,
@@ -325,13 +342,11 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       }
 
       if (!dryRun) {
+        console.log("attempting kick", { telegramId });
         try {
           await tgKick(String(VIP_GROUP_ID), chatId);
           stats.kicked += 1;
-          console.info("kicked expired user", {
-            subId: subscription.id,
-            telegramId,
-          });
+          console.log("kicked expired user", { telegramId });
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           if (isAlreadyLeftError(message)) {
@@ -341,6 +356,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
               telegramId,
             });
           } else {
+            console.error("failed to kick", { telegramId, error: message });
             await safeStep(subscription.id, telegramId, "KICK", async () => {
               throw error;
             });

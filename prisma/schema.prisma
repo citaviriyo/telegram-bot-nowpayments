@@ -42,8 +42,19 @@ model Payment {
   paymentId    String    @unique
   status       String
   raw          Json?
-  inviteSentAt DateTime?  // ✅ lock: supaya invite cuma terkirim 1x
+  inviteSentAt DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }
 
+model PaymentWebhookEvent {
+  id             String   @id @default(cuid())
+  fingerprint    String   @unique
+  paymentId      String
+  paymentStatus  String
+  eventTimestamp DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([paymentId])
+  @@index([createdAt])
+}

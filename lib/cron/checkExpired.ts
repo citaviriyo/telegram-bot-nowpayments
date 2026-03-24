@@ -254,49 +254,74 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       },
     );
 
-    const subscriptionsForExpiredCheck = await prisma.subscription.findMany({
-      where: {
-        status: "active",
+    const membersForExpiredCheck = await prisma.member.findMany({
+      include: {
+        subscriptions: {
+          where: { status: "active" },
+          orderBy: [{ endsAt: "desc" }, { id: "desc" }],
+        },
       },
-      include: { member: true },
-      orderBy: [{ endsAt: "asc" }, { id: "asc" }],
+      orderBy: { updatedAt: "asc" },
     });
 
-    for (const subscription of subscriptionsForExpiredCheck) {
-      const telegramId = subscription?.member?.telegramId;
+    for (const member of membersForExpiredCheck) {
+      const telegramId = member.telegramId;
       if (!telegramId) {
         continue;
       }
 
-      const endsAt = new Date(subscription.endsAt);
-      const endsAtMs = endsAt.getTime();
+      const activeSubscription = member.subscriptions[0];
+      const subscriptionId = activeSubscription?.id ?? member.id;
+      const endsAt = activeSubscription ? new Date(activeSubscription.endsAt) : null;
       const nowMs = Date.now();
-      const isExpired = endsAtMs < nowMs;
+      const endsAtMs = endsAt ? endsAt.getTime() : null;
+      const isExpired = !activeSubscription || (endsAtMs !== null && endsAtMs < nowMs);
 
-      console.log("COMPARE", {
-        telegramId,
-        endsAtISO: endsAt.toISOString(),
-        nowISO: new Date(nowMs).toISOString(),
-        endsAtMs,
-        nowMs,
-        isExpired,
-      });
+      if (endsAt) {
+        console.log("COMPARE", {
+          telegramId,
+          endsAtISO: endsAt.toISOString(),
+          nowISO: new Date(nowMs).toISOString(),
+          endsAtMs,
+          nowMs,
+          isExpired,
+        });
+      } else {
+        console.log("COMPARE", {
+          telegramId,
+          endsAtISO: null,
+          nowISO: new Date(nowMs).toISOString(),
+          endsAtMs: null,
+          nowMs,
+          isExpired,
+        });
+      }
 
       console.log("expired user check", {
         telegramId,
-        endsAt: endsAt.toISOString(),
+        endsAt: endsAt?.toISOString() ?? null,
         isExpired,
       });
+
+      if (!activeSubscription) {
+        console.log("no subscription found, treating as expired", { telegramId });
+      }
 
       if (!isExpired) {
         continue;
       }
 
+      console.info("expired or missing subscription", {
+        telegramId,
+        subscriptionId: activeSubscription?.id ?? null,
+        endsAt: endsAt?.toISOString() ?? null,
+      });
+
       stats.expiredFound += 1;
       console.info("expired user detected", {
-        subId: subscription.id,
+        subId: subscriptionId,
         telegramId,
-        endsAt: endsAt.toISOString(),
+        endsAt: endsAt?.toISOString() ?? null,
       });
 
       const chatId = toTgId(telegramId);
@@ -307,7 +332,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       try {
         memberState = await tgGetChatMemberSafe(String(VIP_GROUP_ID), chatId);
       } catch (error) {
-        await safeStep(subscription.id, telegramId, "ROLE_CHECK", async () => {
+        await safeStep(subscriptionId, telegramId, "ROLE_CHECK", async () => {
           throw error;
         });
         continue;
@@ -319,7 +344,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       if (isAdmin) {
         stats.skippedAdminOwner += 1;
         console.info("user is admin, skipping", {
-          subId: subscription.id,
+          subId: subscriptionId,
           telegramId,
           roleStatus: memberState.status,
         });
@@ -329,23 +354,25 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       if (memberState.leftGroup) {
         stats.alreadyLeft += 1;
         console.info("expired user already left group, skipping", {
-          subId: subscription.id,
+          subId: subscriptionId,
           telegramId,
           roleStatus: memberState.status,
         });
 
         if (!dryRun || writeDb) {
-          await safeStep(subscription.id, telegramId, "EXPIRED_DB_LEFT", async () => {
-            await prisma.subscription.update({
-              where: { id: subscription.id },
-              data: {
-                status: "expired",
-                lastCheckedAt: now,
-              },
-            });
+          await safeStep(subscriptionId, telegramId, "EXPIRED_DB_LEFT", async () => {
+            if (activeSubscription) {
+              await prisma.subscription.update({
+                where: { id: activeSubscription.id },
+                data: {
+                  status: "expired",
+                  lastCheckedAt: now,
+                },
+              });
+            }
 
             await prisma.member.update({
-              where: { id: subscription.member.id },
+              where: { id: member.id },
               data: { status: "EXPIRED" },
             });
           });
@@ -365,12 +392,12 @@ export async function runCheckExpired(opts: RunOpts = {}) {
           if (isAlreadyLeftError(message)) {
             stats.alreadyLeft += 1;
             console.info("expired user already left group, skipping", {
-              subId: subscription.id,
+              subId: subscriptionId,
               telegramId,
             });
           } else {
             console.error("failed to kick", { telegramId, error: message });
-            await safeStep(subscription.id, telegramId, "KICK", async () => {
+            await safeStep(subscriptionId, telegramId, "KICK", async () => {
               throw error;
             });
             continue;
@@ -379,17 +406,19 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       }
 
       if (!dryRun || writeDb) {
-        await safeStep(subscription.id, telegramId, "EXPIRED_DB", async () => {
-          await prisma.subscription.update({
-            where: { id: subscription.id },
-            data: {
-              status: "expired",
-              lastCheckedAt: now,
-            },
-          });
+        await safeStep(subscriptionId, telegramId, "EXPIRED_DB", async () => {
+          if (activeSubscription) {
+            await prisma.subscription.update({
+              where: { id: activeSubscription.id },
+              data: {
+                status: "expired",
+                lastCheckedAt: now,
+              },
+            });
+          }
 
           await prisma.member.update({
-            where: { id: subscription.member.id },
+            where: { id: member.id },
             data: { status: "EXPIRED" },
           });
         });

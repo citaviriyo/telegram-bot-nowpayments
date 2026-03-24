@@ -12,7 +12,13 @@ export const nowPaymentsIpnSchema = z.object({
   price_currency: z.string().trim().min(1, "price_currency is required"),
   pay_amount: numericField.optional(),
   pay_currency: z.string().trim().min(1, "pay_currency is required"),
-  order_id: stringOrNumberField.optional(),
+  order_id: z.union([z.string(), z.number(), z.null()]).optional().transform((value) => {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+
+    return String(value);
+  }),
   order_description: z.string().optional(),
   actually_paid: numericField.optional(),
   invoice_id: z.union([z.string(), z.number()]).optional().transform((value) => {

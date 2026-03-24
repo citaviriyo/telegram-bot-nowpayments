@@ -321,8 +321,8 @@ export class TelegramPaymentFulfillmentService implements PaymentFulfillmentServ
       });
 
       const message = member.isInGroup
-        ? `?? <b>Pembayaran berhasil diterima</b>\n\n?? <b>Paket:</b> ${escapeHtml(planLabel.toUpperCase())}\n? <b>Durasi:</b> ${days} hari\n?? <b>Berlaku sampai:</b> ${escapeHtml(formatDate(member.endsAt))}\n\n?? Kamu masih berada di grup VIP, jadi tidak perlu link undangan baru. Jika ada kendala, silakan hubungi admin: @koinity_admin.`
-        : `?? <b>Pembayaran berhasil diterima</b>\n\n?? <b>Paket:</b> ${escapeHtml(planLabel.toUpperCase())}\n? <b>Durasi:</b> ${days} hari\n?? <b>Berlaku sampai:</b> ${escapeHtml(formatDate(member.endsAt))}\n\n?? <b>Link undangan (sekali pakai):</b>\n${escapeHtml(member.inviteLink || "")}\n\n?? Klik link di atas untuk bergabung ke grup.\n\n?? Jika link kadaluarsa atau tidak berfungsi, silakan hubungi admin: @koinity_admin.`;
+        ? `\u{1F389} <b>Pembayaran berhasil diterima</b>\n\n\u{1F4E6} <b>Paket:</b> ${escapeHtml(planLabel.toUpperCase())}\n\u{23F3} <b>Durasi:</b> ${days} hari\n\u{1F4C5} <b>Berlaku sampai:</b> ${escapeHtml(formatDate(member.endsAt))}\n\n\u{26A0}\u{FE0F} Kamu masih berada di grup VIP, jadi tidak perlu link undangan baru. Jika ada kendala, silakan hubungi admin: @koinity_admin.`
+        : `\u{1F389} <b>Pembayaran berhasil diterima</b>\n\n\u{1F4E6} <b>Paket:</b> ${escapeHtml(planLabel.toUpperCase())}\n\u{23F3} <b>Durasi:</b> ${days} hari\n\u{1F4C5} <b>Berlaku sampai:</b> ${escapeHtml(formatDate(member.endsAt))}\n\n\u{1F517} <b>Link undangan (sekali pakai):</b>\n${escapeHtml(member.inviteLink || "")}\n\n\u{1F449} Klik link di atas untuk bergabung ke grup.\n\n\u{26A0}\u{FE0F} Jika link kadaluarsa atau tidak berfungsi, silakan hubungi admin: @koinity_admin.`;
 
       try {
         await sendHtmlMessage(telegramId, message);

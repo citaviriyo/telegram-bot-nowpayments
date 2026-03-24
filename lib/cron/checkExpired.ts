@@ -14,6 +14,14 @@ type ChatMemberResult = {
   leftGroup: boolean;
 };
 
+type MemberWithActiveSubscriptions = any;
+
+type CandidateUser = {
+  telegramId: string;
+  member: MemberWithActiveSubscriptions | null;
+  source: "member" | "payment";
+};
+
 function assertEnv() {
   if (!BOT_TOKEN) throw new Error("Missing TELEGRAM_BOT_TOKEN");
   if (!VIP_GROUP_ID) throw new Error("Missing TELEGRAM_GROUP_ID");
@@ -36,6 +44,25 @@ function isAlreadyLeftStatus(status?: string) {
 
 function isAlreadyLeftError(message: string) {
   return /user not found|member not found|participant_id_invalid|user_not_participant/i.test(message);
+}
+
+function extractTelegramIdFromOrderDescription(raw: unknown): string | null {
+  const orderDescription =
+    raw && typeof raw === "object" && "order_description" in raw
+      ? (raw as { order_description?: unknown }).order_description
+      : undefined;
+
+  if (typeof orderDescription !== "string") {
+    return null;
+  }
+
+  const parts = orderDescription.split("|").map((part) => part.trim());
+  if (parts.length < 3) {
+    return null;
+  }
+
+  const telegramId = parts[1];
+  return /^\d+$/.test(telegramId) ? telegramId : null;
 }
 
 async function tgPost(method: string, body: Record<string, unknown>) {
@@ -264,14 +291,42 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       orderBy: { updatedAt: "asc" },
     });
 
+    const paymentCandidates = await prisma.payment.findMany({
+      select: {
+        id: true,
+        raw: true,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const candidateUserMap = new Map<string, CandidateUser>();
+
     for (const member of membersForExpiredCheck) {
-      const telegramId = member.telegramId;
-      if (!telegramId) {
+      candidateUserMap.set(member.telegramId, {
+        telegramId: member.telegramId,
+        member,
+        source: "member",
+      });
+    }
+
+    for (const payment of paymentCandidates) {
+      const telegramId = extractTelegramIdFromOrderDescription(payment.raw);
+      if (!telegramId || candidateUserMap.has(telegramId)) {
         continue;
       }
 
-      const activeSubscription = member.subscriptions[0];
-      const subscriptionId = activeSubscription?.id ?? member.id;
+      candidateUserMap.set(telegramId, {
+        telegramId,
+        member: null,
+        source: "payment",
+      });
+    }
+
+    for (const candidate of candidateUserMap.values()) {
+      const telegramId = candidate.telegramId;
+      const member = candidate.member;
+      const activeSubscription = member?.subscriptions[0] ?? null;
+      const subscriptionId = activeSubscription?.id ?? member?.id ?? `unauthorized:${telegramId}`;
       const endsAt = activeSubscription ? new Date(activeSubscription.endsAt) : null;
       const nowMs = Date.now();
       const endsAtMs = endsAt ? endsAt.getTime() : null;
@@ -303,6 +358,13 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         isExpired,
       });
 
+      if (!member) {
+        console.log("user not found in DB, treating as unauthorized", {
+          telegramId,
+          source: candidate.source,
+        });
+      }
+
       if (!activeSubscription) {
         console.log("no subscription found, treating as expired", { telegramId });
       }
@@ -315,6 +377,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         telegramId,
         subscriptionId: activeSubscription?.id ?? null,
         endsAt: endsAt?.toISOString() ?? null,
+        missingMember: !member,
       });
 
       stats.expiredFound += 1;
@@ -359,7 +422,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
           roleStatus: memberState.status,
         });
 
-        if (!dryRun || writeDb) {
+        if (member && (!dryRun || writeDb)) {
           await safeStep(subscriptionId, telegramId, "EXPIRED_DB_LEFT", async () => {
             if (activeSubscription) {
               await prisma.subscription.update({
@@ -405,7 +468,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
         }
       }
 
-      if (!dryRun || writeDb) {
+      if (member && (!dryRun || writeDb)) {
         await safeStep(subscriptionId, telegramId, "EXPIRED_DB", async () => {
           if (activeSubscription) {
             await prisma.subscription.update({

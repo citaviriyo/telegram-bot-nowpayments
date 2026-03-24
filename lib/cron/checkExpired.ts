@@ -254,24 +254,37 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       },
     );
 
-    const expiredSubscriptions = await prisma.subscription.findMany({
+    const subscriptionsForExpiredCheck = await prisma.subscription.findMany({
       where: {
-        endsAt: { lt: now },
+        status: "active",
       },
       include: { member: true },
       orderBy: [{ endsAt: "asc" }, { id: "asc" }],
     });
 
-    for (const subscription of expiredSubscriptions) {
+    for (const subscription of subscriptionsForExpiredCheck) {
       const telegramId = subscription?.member?.telegramId;
       if (!telegramId) {
         continue;
       }
 
-      const isExpired = Boolean(subscription.endsAt && subscription.endsAt.getTime() < now.getTime());
+      const endsAt = new Date(subscription.endsAt);
+      const endsAtMs = endsAt.getTime();
+      const nowMs = Date.now();
+      const isExpired = endsAtMs < nowMs;
+
+      console.log("COMPARE", {
+        telegramId,
+        endsAtISO: endsAt.toISOString(),
+        nowISO: new Date(nowMs).toISOString(),
+        endsAtMs,
+        nowMs,
+        isExpired,
+      });
+
       console.log("expired user check", {
         telegramId,
-        endsAt: subscription.endsAt?.toISOString?.(),
+        endsAt: endsAt.toISOString(),
         isExpired,
       });
 
@@ -283,7 +296,7 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       console.info("expired user detected", {
         subId: subscription.id,
         telegramId,
-        endsAt: subscription.endsAt?.toISOString?.(),
+        endsAt: endsAt.toISOString(),
       });
 
       const chatId = toTgId(telegramId);

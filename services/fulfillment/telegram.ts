@@ -22,7 +22,16 @@ function escapeHtml(value: string): string {
 }
 
 function formatDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  try {
+    return new Intl.DateTimeFormat("id-ID", {
+      timeZone: "Asia/Jakarta",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(date);
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
 }
 
 function parseTelegramUserId(value: string | undefined): { telegramId: string; userId: number } | null {
@@ -312,8 +321,8 @@ export class TelegramPaymentFulfillmentService implements PaymentFulfillmentServ
       });
 
       const message = member.isInGroup
-        ? `<b>Subscription renewed successfully.</b>\n\nPlan: <b>${escapeHtml(planLabel.toUpperCase())}</b>\nAdded duration: <b>${days} days</b>\nActive until: <b>${formatDate(member.endsAt)}</b>\n\nYou are still in the VIP group, so no new invite link is needed.`
-        : `<b>Payment received successfully.</b>\n\nPlan: <b>${escapeHtml(planLabel.toUpperCase())}</b>\nDuration: <b>${days} days</b>\nActive until: <b>${formatDate(member.endsAt)}</b>\n\nJoin link (single use):\n${escapeHtml(member.inviteLink || "")}\n\nIf the link expires or fails, please contact support.`;
+        ? `?? <b>Pembayaran berhasil diterima</b>\n\n?? <b>Paket:</b> ${escapeHtml(planLabel.toUpperCase())}\n? <b>Durasi:</b> ${days} hari\n?? <b>Berlaku sampai:</b> ${escapeHtml(formatDate(member.endsAt))}\n\n?? Kamu masih berada di grup VIP, jadi tidak perlu link undangan baru. Jika ada kendala, silakan hubungi admin: @koinity_admin.`
+        : `?? <b>Pembayaran berhasil diterima</b>\n\n?? <b>Paket:</b> ${escapeHtml(planLabel.toUpperCase())}\n? <b>Durasi:</b> ${days} hari\n?? <b>Berlaku sampai:</b> ${escapeHtml(formatDate(member.endsAt))}\n\n?? <b>Link undangan (sekali pakai):</b>\n${escapeHtml(member.inviteLink || "")}\n\n?? Klik link di atas untuk bergabung ke grup.\n\n?? Jika link kadaluarsa atau tidak berfungsi, silakan hubungi admin: @koinity_admin.`;
 
       try {
         await sendHtmlMessage(telegramId, message);

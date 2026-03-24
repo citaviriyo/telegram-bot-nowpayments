@@ -2,22 +2,17 @@ import { z } from "zod";
 
 const numericField = z.coerce.number().finite();
 const timestampField = z.union([z.string().trim().min(1), z.number().finite()]);
+const stringOrNumberField = z.union([z.string(), z.number()]).transform((value) => String(value));
 
 export const nowPaymentsIpnSchema = z.object({
-  payment_id: z.string().trim().min(1, "payment_id is required"),
+  payment_id: stringOrNumberField.pipe(z.string().trim().min(1, "payment_id is required")),
   payment_status: z.string().trim().min(1, "payment_status is required"),
   pay_address: z.string().trim().min(1, "pay_address is required"),
   price_amount: numericField,
   price_currency: z.string().trim().min(1, "price_currency is required"),
   pay_amount: numericField.optional(),
   pay_currency: z.string().trim().min(1, "pay_currency is required"),
-  order_id: z.union([z.string(), z.number()]).optional().transform((value) => {
-    if (value === undefined || value === null) {
-      return undefined;
-    }
-
-    return String(value);
-  }),
+  order_id: stringOrNumberField.optional(),
   order_description: z.string().optional(),
   actually_paid: numericField.optional(),
   invoice_id: z.union([z.string(), z.number()]).optional().transform((value) => {

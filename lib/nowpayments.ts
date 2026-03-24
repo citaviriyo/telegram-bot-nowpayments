@@ -73,6 +73,21 @@ export interface EstimatedPriceResponse {
   estimated_amount: number;
 }
 
+function buildOrderDescription(telegramUserId: number, plan: string): string {
+  const normalizedUserId = String(telegramUserId).trim();
+  const normalizedPlan = String(plan).trim();
+
+  if (!normalizedUserId) {
+    throw new Error('telegramUserId is required for order_description');
+  }
+
+  if (!normalizedPlan) {
+    throw new Error('plan is required for order_description');
+  }
+
+  return `KOINITY | ${normalizedUserId} | ${normalizedPlan}`;
+}
+
 /**
  * Class helper untuk NOWPayments API
  */
@@ -201,16 +216,24 @@ export class NOWPaymentsAPI {
     ipnCallbackUrl: string
   ): CreatePaymentRequest {
     const packageDetails = this.getPackageDetails(packageType);
-    
+    const plan = packageType === 'monthly' ? '1bulan' : '1tahun';
+    const orderDescription = buildOrderDescription(chatId, plan);
+
+    console.log('creating payment with order_description', {
+      telegramUserId: String(chatId),
+      plan,
+      order_description: orderDescription,
+    });
+
     return {
       price_amount: packageDetails.price,
       price_currency: 'USD',
       pay_currency: 'BTC', // Default ke Bitcoin, bisa diubah
       order_id: `${packageType}_${chatId}_${Date.now()}`,
-      order_description: packageDetails.description,
+      order_description: orderDescription,
       ipn_callback_url: ipnCallbackUrl,
       success_url: "https://koinity.online/success.html",
-  cancel_url: "https://koinity.online/cancel.html"
+      cancel_url: "https://koinity.online/cancel.html"
     };
   }
 

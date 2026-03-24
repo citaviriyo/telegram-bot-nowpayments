@@ -37,14 +37,36 @@ function isValidHttpUrl(u: string) {
   }
 }
 
+function buildOrderDescription(telegramUserId: string | number, plan: string) {
+  const normalizedUserId = String(telegramUserId).trim();
+  const normalizedPlan = String(plan).trim();
+
+  if (!normalizedUserId) {
+    throw new Error("telegramUserId is required for order_description");
+  }
+
+  if (!normalizedPlan) {
+    throw new Error("plan is required for order_description");
+  }
+
+  return `KOINITY | ${normalizedUserId} | ${normalizedPlan}`;
+}
+
 async function tg(method: string, payload: any) {
   if (!TELEGRAM_API) throw new Error("Missing TELEGRAM_BOT_TOKEN");
   return http.post(`${TELEGRAM_API}/${method}`, payload);
 }
 
-async function createInvoice(amountUsd: number, description: string) {
+async function createInvoice(amountUsd: number, telegramUserId: string | number, plan: string) {
   const ipnEnv = cleanUrl(process.env.NOWPAYMENTS_IPN_URL);
   const ipnUrl = isValidHttpUrl(ipnEnv) ? ipnEnv : IPN_URL_FALLBACK;
+  const orderDescription = buildOrderDescription(telegramUserId, plan);
+
+  console.log("creating payment with order_description", {
+    telegramUserId: String(telegramUserId),
+    plan,
+    order_description: orderDescription,
+  });
 
   const res = await http.post(
     "https://api.nowpayments.io/v1/invoice",
@@ -52,7 +74,7 @@ async function createInvoice(amountUsd: number, description: string) {
       price_amount: amountUsd,
       price_currency: "usd",
       pay_currency: "usdtbsc",
-      order_description: description,
+      order_description: orderDescription,
 
       // tetap sesuai flow lama
       success_url: "https://koinity.online/success.html",
@@ -341,7 +363,7 @@ Kalau ada kendala, hubungi admin:
             "✅ *Paket 1 Bulan*\n" +
             "   Harga: *$12*\n\n" +
             "✅ *Paket 3 Bulan*\n" +
-            "   Harga: *$30* (Lebih Hemat ✅)\n\n" +
+            "   Harga: *$30* (Lebih Hemat ✅ )\n\n" +
             "✅ *Paket 1 Tahun*\n" +
             "   Harga: *$50* (Paling Murah 🔥)\n\n" +
             "Semua pembayaran diproses otomatis via *NOWPayments (Kripto)*",
@@ -388,8 +410,7 @@ Kalau ada kendala, hubungi admin:
 
       if (data === "pay_1bulan") {
         try {
-          const description = `KOINITY|${chatId}|1bulan`;
-          const invoiceUrl = await createInvoice(12, description);
+          const invoiceUrl = await createInvoice(12, chatId, "1bulan");
 
           await tg("sendMessage", {
             chat_id: chatId,
@@ -421,14 +442,13 @@ Kalau ada kendala, hubungi admin:
 
       if (data === "pay_3bulan") {
         try {
-          const description = `KOINITY|${chatId}|3bulan`;
-          const invoiceUrl = await createInvoice(30, description);
+          const invoiceUrl = await createInvoice(30, chatId, "3bulan");
 
           await tg("sendMessage", {
             chat_id: chatId,
             text:
               "✅ *Paket 3 Bulan Dipilih*\n\n" +
-              "💰 Harga: *$30* (Lebih Hemat ✅)\n\n" +
+              "💰 Harga: *$30* (Lebih Hemat ✅ )\n\n" +
               "💱 Metode bayar: *USDT jaringan BSC (BEP-20)*\n" +
               "⚠️ Kirim sesuai jumlah yang tertera di halaman pembayaran (termasuk angka di belakang koma).\n" +
               "⚠️ Biaya network dari exchange ditanggung pengirim.\n\n" +
@@ -454,8 +474,7 @@ Kalau ada kendala, hubungi admin:
 
       if (data === "pay_1tahun") {
         try {
-          const description = `KOINITY|${chatId}|1tahun`;
-          const invoiceUrl = await createInvoice(50, description);
+          const invoiceUrl = await createInvoice(50, chatId, "1tahun");
 
           await tg("sendMessage", {
             chat_id: chatId,

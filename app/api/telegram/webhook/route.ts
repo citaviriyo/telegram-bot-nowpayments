@@ -20,6 +20,7 @@ const http = axios.create({
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_API = BOT_TOKEN ? `https://api.telegram.org/bot${BOT_TOKEN}` : "";
+const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 
 // fallback IPN URL kalau env kosong/typo
 const IPN_URL_FALLBACK = "https://www.koinity.online/api/nowpayments/ipn";
@@ -128,6 +129,11 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const secretHeader = req.headers.get("x-telegram-bot-api-secret-token") || "";
+    if (!TELEGRAM_WEBHOOK_SECRET || secretHeader !== TELEGRAM_WEBHOOK_SECRET) {
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+
     const update: any = await readUpdate(req);
 
     // === ANTI NYAMBER GROUP (WAJIB DI SINI) ===

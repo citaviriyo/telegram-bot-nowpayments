@@ -2,9 +2,15 @@ import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
+const TELEGRAM_INVITE_SECRET = process.env.TELEGRAM_INVITE_SECRET;
 
 export async function POST(req: Request) {
   try {
+    const inviteSecret = req.headers.get("x-telegram-invite-secret") || "";
+    if (!TELEGRAM_INVITE_SECRET || inviteSecret !== TELEGRAM_INVITE_SECRET) {
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+
     const { telegramId } = await req.json();
     const normalizedTelegramId = String(telegramId ?? "").trim();
     const now = new Date();

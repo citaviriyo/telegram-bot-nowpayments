@@ -7,7 +7,28 @@ function unauthorized() {
   return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 }
 
-export async function GET() {
+function authorize(req: Request) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    return NextResponse.json({ ok: false, error: "CRON_SECRET missing" }, { status: 500 });
+  }
+
+  const headerSecret =
+    req.headers.get("x-cron-secret") ||
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    "";
+
+  if (headerSecret !== secret) return unauthorized();
+
+  return null;
+}
+
+export async function GET(req: Request) {
+  const authError = authorize(req);
+  if (authError) {
+    return authError;
+  }
+
   await checkExpired();
 
   return NextResponse.json({
@@ -18,17 +39,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const secret = process.env.CRON_SECRET;
-    if (!secret) {
-      return NextResponse.json({ ok: false, error: "CRON_SECRET missing" }, { status: 500 });
+    const authError = authorize(req);
+    if (authError) {
+      return authError;
     }
-
-    const headerSecret =
-      req.headers.get("x-cron-secret") ||
-      req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
-      "";
-
-    if (headerSecret !== secret) return unauthorized();
 
     const url = new URL(req.url);
     const dryRun = url.searchParams.get("dryRun") === "1";

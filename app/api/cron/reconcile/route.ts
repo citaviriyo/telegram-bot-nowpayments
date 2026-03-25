@@ -3,13 +3,35 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+function unauthorized() {
+  return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+}
+
+function authorize(req: Request) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    return NextResponse.json({ ok: false, error: "CRON_SECRET missing" }, { status: 500 });
+  }
+
+  const headerSecret =
+    req.headers.get("x-cron-secret") ||
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    "";
+
+  if (headerSecret !== secret) {
+    return unauthorized();
+  }
+
+  return null;
+}
+
 /**
  * Parse dari order_description
  * contoh: "KOINITY|664884930|1bulan"
  */
 function parseOrderDescription(desc: string): { telegramId: string; plan: string; days: number } | null {
   if (!desc) return null;
-  const parts = desc.split("|").map(s => s.trim());
+  const parts = desc.split("|").map((s) => s.trim());
   if (parts.length < 3) return null;
 
   const telegramId = parts[1];
@@ -25,7 +47,12 @@ function parseOrderDescription(desc: string): { telegramId: string; plan: string
   return null;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const authError = authorize(req);
+  if (authError) {
+    return authError;
+  }
+
   const now = new Date();
   let fixed = 0;
   let skipped = 0;
@@ -33,7 +60,7 @@ export async function GET() {
   const payments = await prisma.payment.findMany({
     where: { status: "finished" },
     orderBy: { createdAt: "desc" },
-    take: 100, // aman, bisa dinaikkan
+    take: 100,
   });
 
   for (const p of payments) {

@@ -2,6 +2,28 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+function unauthorized() {
+  return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+}
+
+function authorize(req: Request) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    return { error: NextResponse.json({ ok: false, error: "CRON_SECRET missing" }, { status: 500 }) };
+  }
+
+  const headerSecret =
+    req.headers.get("x-cron-secret") ||
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    "";
+
+  if (headerSecret !== secret) {
+    return { error: unauthorized() };
+  }
+
+  return { secret };
+}
+
 function isWIBExpiredWindow() {
   const now = new Date();
   const hour = (now.getUTCHours() + 7) % 24;
@@ -9,7 +31,7 @@ function isWIBExpiredWindow() {
   return hour === 0 && minute >= 5 && minute <= 15;
 }
 
-async function hit(path: string) {
+async function hit(path: string, secret: string) {
   const base = process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`
     : "";
@@ -17,6 +39,9 @@ async function hit(path: string) {
   const res = await fetch(`${base}${path}`, {
     method: "GET",
     cache: "no-store",
+    headers: {
+      "x-cron-secret": secret,
+    },
   });
 
   return {
@@ -27,17 +52,20 @@ async function hit(path: string) {
   };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = authorize(req);
+  if (auth.error) {
+    return auth.error;
+  }
+
   const result: any = {
     time: new Date().toISOString(),
   };
 
-  // 1️⃣ reconcile tiap 30 menit
-  result.reconcile = await hit("/api/cron/reconcile");
+  result.reconcile = await hit("/api/cron/reconcile", auth.secret);
 
-  // 2️⃣ check expired cuma 1x sehari (00:05–00:15 WIB)
   if (isWIBExpiredWindow()) {
-    result.checkExpired = await hit("/api/cron/check-expired");
+    result.checkExpired = await hit("/api/cron/check-expired", auth.secret);
   } else {
     result.checkExpired = "skipped";
   }

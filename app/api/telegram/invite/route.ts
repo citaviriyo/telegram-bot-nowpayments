@@ -6,17 +6,39 @@ const prisma = new PrismaClient();
 export async function POST(req: Request) {
   try {
     const { telegramId } = await req.json();
+    const normalizedTelegramId = String(telegramId ?? "").trim();
+    const now = new Date();
 
-    if (!telegramId) {
-      return NextResponse.json({ ok: false, error: "telegramId required" }, { status: 400 });
+    if (!normalizedTelegramId || !/^\d+$/.test(normalizedTelegramId)) {
+      return NextResponse.json({ ok: false, error: "invalid user" }, { status: 401 });
     }
 
     const member = await prisma.member.findUnique({
-      where: { telegramId: String(telegramId) },
+      where: { telegramId: normalizedTelegramId },
+      include: {
+        subscriptions: {
+          where: {
+            status: "active",
+            endsAt: { gt: now },
+          },
+          orderBy: { endsAt: "desc" },
+          take: 1,
+        },
+      },
     });
 
-    if (!member || member.status !== "ACTIVE") {
-      return NextResponse.json({ ok: false, error: "member not active" }, { status: 400 });
+    if (!member) {
+      return NextResponse.json({ ok: false, error: "invalid user" }, { status: 401 });
+    }
+
+    const activeSubscription = member.subscriptions[0];
+    const isActiveMember =
+      member.status === "ACTIVE" &&
+      member.expiredAt instanceof Date &&
+      member.expiredAt.getTime() > now.getTime();
+
+    if (!isActiveMember || !activeSubscription) {
+      return NextResponse.json({ ok: false, error: "member not active" }, { status: 403 });
     }
 
     const chatId = (process.env.TELEGRAM_GROUP_ID || "").trim();
@@ -51,7 +73,7 @@ export async function POST(req: Request) {
     const inviteLink = data.result.invite_link as string;
 
     await prisma.member.update({
-      where: { telegramId: String(telegramId) },
+      where: { telegramId: normalizedTelegramId },
       data: { inviteLink },
     });
 

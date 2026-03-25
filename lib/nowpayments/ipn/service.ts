@@ -24,7 +24,11 @@ export class NowPaymentsIpnService {
 
   verifySignature(rawBody: string, signature: string | null): SignatureValidationResult {
     if (!this.ipnSecret) {
-      return { ok: true };
+      return {
+        ok: false,
+        message: "NOWPAYMENTS_IPN_SECRET is missing",
+        reason: "invalid signature",
+      };
     }
 
     if (!signature) {

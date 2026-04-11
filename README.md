@@ -32,19 +32,25 @@ Set di Vercel (Project → Settings → Environment Variables) dan untuk lokal p
 
 ```bash
 # Site
-SITE_URL=https://www.koinity.online
+SITE_URL=https://koinity.my.id
+NEXT_PUBLIC_BASE_URL=https://koinity.my.id
+NOWPAYMENTS_IPN_URL=https://koinity.my.id/api/nowpayments/ipn
 
 # Telegram
-TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
-TELEGRAM_GROUP_ID=-1001234567890
+TELEGRAM_BOT_TOKEN=YOUR_BOT_TOKEN_HERE
+TELEGRAM_GROUP_ID=YOUR_GROUP_ID_HERE
+TELEGRAM_WEBHOOK_SECRET=YOUR_WEBHOOK_SECRET_HERE
 
 # NOWPayments
-NOWPAYMENTS_API_KEY=your_nowpayments_api_key_here
-NOWPAYMENTS_IPN_SECRET=your_ipn_secret_here  # recommended
+NOWPAYMENTS_API_KEY=YOUR_NOWPAYMENTS_API_KEY_HERE
+NOWPAYMENTS_IPN_SECRET=YOUR_IPN_SECRET_HERE  # recommended
 
 # Database (Neon / Postgres)
-DATABASE_URL=postgresql://...
-````
+DATABASE_URL=YOUR_DATABASE_URL_HERE
+
+# Cron
+CRON_SECRET=YOUR_CRON_SECRET_HERE
+```
 
 > Catatan:
 >
@@ -101,20 +107,20 @@ Berikut endpoint yang digunakan sistem saat ini (App Router):
 
 ### ✅ Healthcheck
 
-* `GET https://www.koinity.online/api/system/ping`
+* `GET https://koinity.my.id/api/system/ping`
 
 ### ✅ Telegram Webhook (untuk menerima update dari Telegram)
 
-* `POST https://www.koinity.online/api/telegram/webhook`
-* `GET https://www.koinity.online/api/telegram/webhook` → test alive
+* `POST https://koinity.my.id/api/telegram/webhook`
+* `GET https://koinity.my.id/api/telegram/webhook` → test alive
 
 ### ✅ NOWPayments IPN (payment status callback)
 
-* `POST https://www.koinity.online/api/nowpayments/ipn`
+* `POST https://koinity.my.id/api/nowpayments/ipn`
 
 ### ✅ Pay IPN (compat / entry point)
 
-* `POST https://www.koinity.online/api/pay/ipn`
+* `POST https://koinity.my.id/api/pay/ipn`
   Endpoint ini berfungsi sebagai entry point/compat dan akan meneruskan payload ke `/api/nowpayments/ipn`.
 
 ---
@@ -124,15 +130,15 @@ Berikut endpoint yang digunakan sistem saat ini (App Router):
 Set webhook ke endpoint production:
 
 ```bash
-curl -X POST "https://api.telegram.org/botYOUR_BOT_TOKEN/setWebhook" \
+curl -X POST "https://api.telegram.org/botYOUR_BOT_TOKEN_HERE/setWebhook" \
   -H "Content-Type: application/json" \
-  -d '{"url":"https://www.koinity.online/api/telegram/webhook"}'
+  -d '{"url":"https://koinity.my.id/api/telegram/webhook"}'
 ```
 
 Cek status webhook:
 
 ```bash
-curl "https://api.telegram.org/botYOUR_BOT_TOKEN/getWebhookInfo"
+curl "https://api.telegram.org/botYOUR_BOT_TOKEN_HERE/getWebhookInfo"
 ```
 
 ---
@@ -144,7 +150,7 @@ Di NOWPayments Dashboard:
 1. Settings → IPN Settings
 2. Set IPN URL:
 
-   * `https://www.koinity.online/api/nowpayments/ipn`
+   * `https://koinity.my.id/api/nowpayments/ipn`
 3. Set IPN Secret (recommended)
 4. Save
 
@@ -191,7 +197,7 @@ Akses lama tetap diarahkan:
 
 * Pastikan webhook URL benar:
 
-  * `https://www.koinity.online/api/telegram/webhook`
+  * `https://koinity.my.id/api/telegram/webhook`
 * Cek `getWebhookInfo`
 * Pastikan bot token benar dan bot tidak dibatasi
 
@@ -199,7 +205,7 @@ Akses lama tetap diarahkan:
 
 * Pastikan IPN URL benar:
 
-  * `https://www.koinity.online/api/nowpayments/ipn`
+  * `https://koinity.my.id/api/nowpayments/ipn`
 * Pastikan `NOWPAYMENTS_IPN_SECRET` sama persis dengan di dashboard
 * Cek NOWPayments IPN History
 

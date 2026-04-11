@@ -21,9 +21,11 @@ const http = axios.create({
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_API = BOT_TOKEN ? `https://api.telegram.org/bot${BOT_TOKEN}` : "";
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
+const SITE_URL = cleanUrl(process.env.SITE_URL);
 
-// fallback IPN URL kalau env kosong/typo
-const IPN_URL_FALLBACK = "https://www.koinity.online/api/nowpayments/ipn";
+if (!SITE_URL) {
+  throw new Error("SITE_URL is not defined");
+}
 
 function cleanUrl(u: string | undefined) {
   return String(u || "").trim();
@@ -59,8 +61,7 @@ async function tg(method: string, payload: any) {
 }
 
 async function createInvoice(amountUsd: number, telegramUserId: string | number, plan: string) {
-  const ipnEnv = cleanUrl(process.env.NOWPAYMENTS_IPN_URL);
-  const ipnUrl = isValidHttpUrl(ipnEnv) ? ipnEnv : IPN_URL_FALLBACK;
+  const ipnUrl = cleanUrl(process.env.NOWPAYMENTS_IPN_URL);
   const orderDescription = buildOrderDescription(telegramUserId, plan);
 
   console.log("creating payment with order_description", {
@@ -78,8 +79,8 @@ async function createInvoice(amountUsd: number, telegramUserId: string | number,
       order_description: orderDescription,
 
       // tetap sesuai flow lama
-      success_url: "https://koinity.online/success.html",
-      cancel_url: "https://koinity.online/cancel.html",
+      success_url: `${SITE_URL}/success.html`,
+      cancel_url: `${SITE_URL}/cancel.html`,
 
       ipn_callback_url: ipnUrl,
     },

@@ -1,5 +1,11 @@
 import axios from 'axios';
 
+const SITE_URL = process.env.SITE_URL?.trim();
+
+if (!SITE_URL) {
+  throw new Error("SITE_URL is not defined");
+}
+
 // Interface untuk request create payment
 export interface CreatePaymentRequest {
   price_amount: number;
@@ -232,8 +238,8 @@ export class NOWPaymentsAPI {
       order_id: `${packageType}_${chatId}_${Date.now()}`,
       order_description: orderDescription,
       ipn_callback_url: ipnCallbackUrl,
-      success_url: "https://koinity.online/success.html",
-      cancel_url: "https://koinity.online/cancel.html"
+      success_url: `${SITE_URL}/success.html`,
+      cancel_url: `${SITE_URL}/cancel.html`
     };
   }
 

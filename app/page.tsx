@@ -1,5 +1,8 @@
 import Link from "next/link";
 import FooterYear from "./components/FooterYear";
+import HeroMotionWrapper from "./components/HeroMotionWrapper";
+import HeroMotionLink from "./components/HeroMotionLink";
+import HeroAmbientBackground from "./components/HeroAmbientBackground";
 
 const TG_BOT_URL = "https://t.me/koinity_bot";
 
@@ -46,89 +49,114 @@ export default function HomePage() {
 
       {/* Hero */}
       <section style={styles.hero}>
+        <HeroAmbientBackground />
         <div style={styles.container}>
           <div style={styles.heroWrap}>
             {/* left */}
             <div style={styles.heroLeft}>
-              <div style={styles.pill}>⚡ Akses VIP via Telegram (Otomatis)</div>
+              <HeroMotionWrapper delay={0.04}>
+                <div style={styles.pill}>⚡ Akses VIP via Telegram (Otomatis)</div>
+              </HeroMotionWrapper>
 
-              <h1 style={styles.h1}>
-                Masuk VIP Koinity, <br />
-                naik level di crypto{" "}
-                <span style={styles.yellow}>tanpa spekulasi asal</span>.
-              </h1>
+              <HeroMotionWrapper delay={0.12}>
+                <h1 style={styles.h1}>
+                  Masuk VIP Koinity, <br />
+                  naik level di crypto{" "}
+                  <span style={styles.yellow}>tanpa spekulasi asal</span>.
+                </h1>
+              </HeroMotionWrapper>
 
-              <p style={styles.lead}>
-                Koinity bukan untuk semua orang. Ini tempat buat kamu yang mau
-                lebih serius membangun posisi, punya sistem, dan lingkungan yang
-                tepat.
-              </p>
+              <HeroMotionWrapper delay={0.2}>
+                <p style={styles.lead}>
+                  Koinity bukan untuk semua orang. Ini tempat buat kamu yang mau
+                  lebih serius membangun posisi, punya sistem, dan lingkungan yang
+                  tepat.
+                </p>
+              </HeroMotionWrapper>
 
-              <div style={styles.heroCtas}>
-                <a href="#pricing" style={styles.primaryBtn}>
-                  Lihat Paket
-                </a>
-                <a href={TG_BOT_URL} style={styles.secondaryBtn}>
-                  Buka koinity_bot
-                </a>
-              </div>
+              <HeroMotionWrapper delay={0.28}>
+                <div style={styles.heroCtas}>
+                  <HeroMotionLink
+                    href="#pricing"
+                    style={styles.primaryBtn}
+                    hoverShadow="0 14px 26px rgba(250,204,21,0.26)"
+                  >
+                    Lihat Paket
+                  </HeroMotionLink>
+                  <HeroMotionLink
+                    href={TG_BOT_URL}
+                    style={styles.secondaryBtn}
+                    hoverShadow="0 10px 20px rgba(250,204,21,0.14)"
+                  >
+                    Buka koinity_bot
+                  </HeroMotionLink>
+                </div>
+              </HeroMotionWrapper>
 
-              <div style={styles.trustRow}>
-                <div style={styles.trustItem}>✅ Aktivasi otomatis</div>
-                <div style={styles.trustItem}>🔒 Grup private (akses via bot)</div>
-                <div style={styles.trustItem}>⏱️ Cepat & transparan</div>
-              </div>
+              <HeroMotionWrapper delay={0.34}>
+                <div style={styles.trustRow}>
+                  <div style={styles.trustItem}>✅ Aktivasi otomatis</div>
+                  <div style={styles.trustItem}>🔒 Grup private (akses via bot)</div>
+                  <div style={styles.trustItem}>⏱️ Cepat & transparan</div>
+                </div>
+              </HeroMotionWrapper>
             </div>
 
             {/* right card */}
             <div style={styles.heroRight}>
-              <div style={styles.heroCard}>
-                <div style={styles.heroCardTop}>
-                  <div>
-                    <div style={styles.heroCardTitle}>Cara Join VIP</div>
-                    <div style={styles.heroCardDesc}>3 langkah simpel</div>
+              <HeroMotionWrapper delay={0.18}>
+                <div style={styles.heroCard}>
+                  <div style={styles.heroCardTop}>
+                    <div>
+                      <div style={styles.heroCardTitle}>Cara Join VIP</div>
+                      <div style={styles.heroCardDesc}>3 langkah simpel</div>
+                    </div>
+                    <div style={styles.badgeGreen}>Live</div>
                   </div>
-                  <div style={styles.badgeGreen}>Live</div>
+
+                  <ol style={styles.steps}>
+                    <li style={styles.step}>
+                      <div style={styles.stepNum}>1</div>
+                      <div>
+                        <div style={styles.stepTitle}>Pilih paket membership</div>
+                        <div style={styles.stepText}>
+                          1 bulan, 3 bulan, atau 1 tahun.
+                        </div>
+                      </div>
+                    </li>
+                    <li style={styles.step}>
+                      <div style={styles.stepNum}>2</div>
+                      <div>
+                        <div style={styles.stepTitle}>Selesaikan pembayaran</div>
+                        <div style={styles.stepText}>
+                          Diproses otomatis via NOWPayments.
+                        </div>
+                      </div>
+                    </li>
+                    <li style={styles.step}>
+                      <div style={styles.stepNum}>3</div>
+                      <div>
+                        <div style={styles.stepTitle}>Klik bot → dapat akses</div>
+                        <div style={styles.stepText}>
+                          Bot kirim akses VIP setelah status aktif.
+                        </div>
+                      </div>
+                    </li>
+                  </ol>
+
+                  <HeroMotionLink
+                    href={TG_BOT_URL}
+                    style={styles.cardBtn}
+                    hoverShadow="0 14px 28px rgba(22,163,74,0.30)"
+                  >
+                    🚀 Masuk ke Bot Telegram VIP
+                  </HeroMotionLink>
+
+                  <div style={styles.miniNote}>
+                    *Jika akses belum aktif, tunggu sebentar lalu coba lagi.
+                  </div>
                 </div>
-
-                <ol style={styles.steps}>
-                  <li style={styles.step}>
-                    <div style={styles.stepNum}>1</div>
-                    <div>
-                      <div style={styles.stepTitle}>Pilih paket membership</div>
-                      <div style={styles.stepText}>
-                        1 bulan, 3 bulan, atau 1 tahun.
-                      </div>
-                    </div>
-                  </li>
-                  <li style={styles.step}>
-                    <div style={styles.stepNum}>2</div>
-                    <div>
-                      <div style={styles.stepTitle}>Selesaikan pembayaran</div>
-                      <div style={styles.stepText}>
-                        Diproses otomatis via NOWPayments.
-                      </div>
-                    </div>
-                  </li>
-                  <li style={styles.step}>
-                    <div style={styles.stepNum}>3</div>
-                    <div>
-                      <div style={styles.stepTitle}>Klik bot → dapat akses</div>
-                      <div style={styles.stepText}>
-                        Bot kirim akses VIP setelah status aktif.
-                      </div>
-                    </div>
-                  </li>
-                </ol>
-
-                <a href={TG_BOT_URL} style={styles.cardBtn}>
-                  🚀 Masuk ke Bot Telegram VIP
-                </a>
-
-                <div style={styles.miniNote}>
-                  *Jika akses belum aktif, tunggu sebentar lalu coba lagi.
-                </div>
-              </div>
+              </HeroMotionWrapper>
             </div>
           </div>
         </div>
@@ -427,11 +455,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   hero: {
+    position: "relative",
     background:
       "radial-gradient(900px 420px at 18% 10%, rgba(250,204,21,0.18), transparent 60%), radial-gradient(900px 420px at 84% 0%, rgba(34,197,94,0.10), transparent 60%), #0b0f14",
     padding: "58px 0 38px",
+    overflow: "hidden",
   },
   heroWrap: {
+    position: "relative",
+    zIndex: 1,
     display: "flex",
     gap: 28,
     alignItems: "stretch",

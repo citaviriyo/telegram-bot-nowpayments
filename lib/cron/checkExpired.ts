@@ -1,4 +1,5 @@
 import prisma from "../prisma";
+import { buildVipPackageMenuMessage } from "../telegramVipPackageMenu";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const VIP_GROUP_ID = process.env.TELEGRAM_GROUP_ID;
@@ -80,6 +81,31 @@ async function tgPost(method: string, body: Record<string, unknown>) {
   return data;
 }
 
+function vipReminderH3Message() {
+  return (
+    `<b>⚠️ Reminder H-3</b>\n\n` +
+    `Langganan VIP kamu akan berakhir dalam 3 hari.\n` +
+    `Silakan segera perpanjang untuk melanjutkan akses VIP. 🙏`
+  );
+}
+
+function vipReminderH1Message() {
+  return (
+    `<b>⏰ Reminder H-1</b>\n\n` +
+    `Langganan VIP akan berakhir dalam 24 jam.\n` +
+    `Jika tidak diperpanjang, kamu akan dikeluarkan dari grup.\n` +
+    `Segera lakukan perpanjangan agar akses tidak terputus. 🙏`
+  );
+}
+
+function vipExpiredMessage() {
+  return (
+    `<b>❌ Langganan VIP telah berakhir</b>\n\n` +
+    `Akses VIP dihentikan &amp; kamu dikeluarkan dari grup.\n` +
+    `Jika ingin lanjut, silakan berlangganan kembali. 🙏`
+  );
+}
+
 async function tgSendMessage(chatId: number, text: string) {
   return tgPost("sendMessage", {
     chat_id: chatId,
@@ -87,6 +113,10 @@ async function tgSendMessage(chatId: number, text: string) {
     parse_mode: "HTML",
     disable_web_page_preview: true,
   });
+}
+
+async function tgSendVipPackageMenu(chatId: number) {
+  return tgPost("sendMessage", buildVipPackageMenuMessage(chatId));
 }
 
 async function tgKick(groupId: string, userId: number) {
@@ -225,10 +255,11 @@ export async function runCheckExpired(opts: RunOpts = {}) {
 
         if (!dryRun) {
           await safeStep(subscription.id, telegramId, "H3_SEND", () =>
-            tgSendMessage(
-              chatId,
-              `<b>Reminder H-3</b>\n\nLangganan VIP kamu akan <b>berakhir dalam 3 hari</b>.\nSilakan segera perpanjang.`,
-            ),
+            tgSendMessage(chatId, vipReminderH3Message()),
+          );
+
+          await safeStep(subscription.id, telegramId, "H3_MENU", () =>
+            tgSendVipPackageMenu(chatId),
           );
         }
 
@@ -263,10 +294,11 @@ export async function runCheckExpired(opts: RunOpts = {}) {
 
         if (!dryRun) {
           await safeStep(subscription.id, telegramId, "H1_SEND", () =>
-            tgSendMessage(
-              chatId,
-              `<b>Reminder H-1</b>\n\nLangganan VIP akan <b>berakhir dalam 24 jam</b>.\nJika tidak diperpanjang, kamu akan dikeluarkan dari grup.`,
-            ),
+            tgSendMessage(chatId, vipReminderH1Message()),
+          );
+
+          await safeStep(subscription.id, telegramId, "H1_MENU", () =>
+            tgSendVipPackageMenu(chatId),
           );
         }
 
@@ -445,6 +477,14 @@ export async function runCheckExpired(opts: RunOpts = {}) {
       }
 
       if (!dryRun) {
+        await safeStep(subscriptionId, telegramId, "EXPIRED_SEND", () =>
+          tgSendMessage(chatId, vipExpiredMessage()),
+        );
+
+        await safeStep(subscriptionId, telegramId, "EXPIRED_MENU", () =>
+          tgSendVipPackageMenu(chatId),
+        );
+
         console.log("attempting kick", { telegramId });
         try {
           await tgKick(String(VIP_GROUP_ID), chatId);
